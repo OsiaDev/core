@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: umas-core-service
+
+kafka:
+  topics:
+    telemetry: ugcs.drone.telemetry
+    events: ugcs.drone.events
+    commands: ugcs.drone.execute
+    vehicle-status: ugcs.drone.vehicle.status
+    route-status: ugcs.drone.route.status
+
+ugcs:
+  server:
+    host: 192.168.100.243
+    port: 3334
+  credentials:
+    login: admin
+    password: admin
+  reconnect:
+    enabled: true
+    initial-delay: 5000
+    max-delay: 60000
+    multiplier: 2.0
