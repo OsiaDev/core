@@ -10,6 +10,24 @@ spring:
   application:
     name: umas-core-service
 
+  kafka:
+    consumer:
+      bootstrap-servers: ${KAFKA_BROKERS}
+      group-id: umas-core-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        spring.json.trusted.packages: "co.cetad.umas.core.domain.model.vo"
+    producer:
+      bootstrap-servers: ${KAFKA_BROKERS}
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+
 kafka:
   topics:
     telemetry: ugcs.drone.telemetry
