@@ -12,7 +12,7 @@ spring:
 
   kafka:
     consumer:
-      bootstrap-servers: ${KAFKA_BROKERS}
+      bootstrap-servers: ${KAFKA_BROKERS:localhost:29092}
       group-id: umas-core-service
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
@@ -20,7 +20,7 @@ spring:
       properties:
         spring.json.trusted.packages: "co.cetad.umas.core.domain.model.vo"
     producer:
-      bootstrap-servers: ${KAFKA_BROKERS}
+      bootstrap-servers: ${KAFKA_BROKERS:localhost:29092}
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
       acks: all
@@ -38,11 +38,11 @@ kafka:
 
 ugcs:
   server:
-    host: ${UGCS_HOST}
-    port: ${UGCS_PORT}
+    host: ${UGCS_HOST:192.168.100.243}
+    port: ${UGCS_PORT:3334}
   credentials:
-    login: ${UGCS_LOGIN}
-    password: ${UGCS_PASS}
+    login: ${UGCS_LOGIN:admin}
+    password: ${UGCS_PASS:admin}
   reconnect:
     enabled: true
     initial-delay: 5000
