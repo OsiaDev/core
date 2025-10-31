@@ -33,6 +33,17 @@ public class KafkaConfig {
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false); // Manual acknowledgment
+
+        // Configuración de reconexión automática
+        props.put(ConsumerConfig.RECONNECT_BACKOFF_MS_CONFIG, 500);
+        props.put(ConsumerConfig.RECONNECT_BACKOFF_MAX_MS_CONFIG, 10000);
+        props.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, 30000);
+        props.put(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG, 10000);
+        props.put(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG, 40000);
+
+        // Configuración de metadata para reintentar obtener info del broker
+        props.put(ConsumerConfig.METADATA_MAX_AGE_CONFIG, 5000);
+
         return new DefaultKafkaConsumerFactory<>(props);
     }
 
