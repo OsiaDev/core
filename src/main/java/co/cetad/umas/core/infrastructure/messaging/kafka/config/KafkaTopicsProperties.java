@@ -9,14 +9,14 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "kafka.topics")
 public class KafkaTopicsProperties {
 
-    private String telemetry = "ugcs.drone.telemetry";
+    private String telemetry = "umas.drone.telemetry";
 
-    private String events = "ugcs.drone.events";
+    private String events = "umas.drone.events";
 
-    private String commands = "ugcs.drone.execute";
+    private String commands = "umas.drone.execute";
 
-    private String vehicleStatus = "ugcs.drone.vehicle.status";
+    private String vehicleStatus = "umas.drone.vehicle.status";
 
-    private String routeStatus = "ugcs.drone.route.status";
+    private String routeStatus = "umas.drone.route.status";
 
 }

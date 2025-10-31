@@ -30,11 +30,11 @@ spring:
 
 kafka:
   topics:
-    telemetry: ugcs.drone.telemetry
-    events: ugcs.drone.events
-    commands: ugcs.drone.execute
-    vehicle-status: ugcs.drone.vehicle.status
-    route-status: ugcs.drone.route.status
+    telemetry: umas.drone.telemetry
+    events: umas.drone.events
+    commands: umas.drone.execute
+    vehicle-status: umas.drone.vehicle.status
+    route-status: umas.drone.route.status
 
 ugcs:
   server:
