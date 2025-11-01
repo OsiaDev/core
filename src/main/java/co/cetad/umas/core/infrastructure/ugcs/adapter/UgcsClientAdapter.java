@@ -2,6 +2,7 @@ package co.cetad.umas.core.infrastructure.ugcs.adapter;
 
 import co.cetad.umas.core.domain.model.vo.CommandRequest;
 import co.cetad.umas.core.domain.model.vo.TelemetryData;
+import co.cetad.umas.core.domain.ports.out.DroneCache;
 import co.cetad.umas.core.domain.ports.out.UgcsClient;
 import co.cetad.umas.core.infrastructure.ugcs.listener.TelemetryNotificationListener;
 import com.ugcs.ucs.client.Client;
@@ -20,7 +21,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @Component
+@lombok.RequiredArgsConstructor
 public class UgcsClientAdapter implements UgcsClient {
+
+    private final DroneCache droneCache;
 
     private Client client;
     private ClientSession session;
@@ -36,7 +40,7 @@ public class UgcsClientAdapter implements UgcsClient {
                     InetSocketAddress serverAddress = new InetSocketAddress(host, port);
                     client = new Client(serverAddress);
 
-                    var listener = new TelemetryNotificationListener(telemetrySink);
+                    var listener = new TelemetryNotificationListener(telemetrySink, droneCache);
                     client.addNotificationListener(listener);
 
                     client.connect();

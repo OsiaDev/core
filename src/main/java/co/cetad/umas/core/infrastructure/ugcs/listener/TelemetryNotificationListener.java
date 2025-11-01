@@ -16,7 +16,8 @@ import java.util.function.Consumer;
 
 @Slf4j
 public record TelemetryNotificationListener(
-        Sinks.Many<TelemetryData> telemetrySink
+        Sinks.Many<TelemetryData> telemetrySink,
+        co.cetad.umas.core.domain.ports.out.DroneCache droneCache
 ) implements ServerNotificationListener {
 
     @Override
@@ -30,15 +31,41 @@ public record TelemetryNotificationListener(
             var telemetryEvent = wrapper.getTelemetryEvent();
             var vehicle = telemetryEvent.getVehicle();
 
-            var telemetryData = processTelemetry(
+            final var telemetryData = processTelemetry(
                     vehicle.getName(),
                     telemetryEvent.getTelemetryList()
             );
 
-            var emitResult = telemetrySink.tryEmitNext(telemetryData);
+            // Validate latitude/longitude before emitting to Kafka using TelemetryData API
+            boolean valid = telemetryData.isValidLocation();
 
-            if (emitResult.isFailure()) {
-                log.warn("Failed to emit telemetry: {}", emitResult);
+            if (!valid) {
+                // Try to enrich from cache replacing zero coords with cached ones
+                var cached = droneCache.getTelemetry(telemetryData.vehicleId());
+
+                var newDrone = cached.map(droneCached -> {
+                    return new TelemetryData(
+                            droneCached.vehicleId(),
+                            droneCached.location(),
+                            telemetryData.fields(),
+                            telemetryData.timestamp()
+                    );
+                });
+
+                newDrone.ifPresent(drone -> {
+                    droneCache.setTelemetry(telemetryData.vehicleId(), drone);
+                });
+            }
+
+            if (valid) {
+                // Update cache and emit
+                droneCache.setTelemetry(telemetryData.vehicleId(), telemetryData);
+                var emitResult = telemetrySink.tryEmitNext(telemetryData);
+                if (emitResult.isFailure()) {
+                    log.warn("Failed to emit telemetry: {}", emitResult);
+                }
+            } else {
+                log.debug("Skipping telemetry emission for vehicle {} due to invalid lat/lon and no cache", telemetryData.vehicleId());
             }
 
         } catch (Exception e) {
@@ -60,8 +87,8 @@ public record TelemetryNotificationListener(
             var value = telemetry.getValue();
 
             processTelemetryField(field, value, fields,
-                    v -> latRef[0] = v,
-                    v -> lonRef[0] = v,
+                    v -> { latRef[0] = v; },
+                    v -> { lonRef[0] = v; },
                     v -> altRef[0] = v
             );
         }

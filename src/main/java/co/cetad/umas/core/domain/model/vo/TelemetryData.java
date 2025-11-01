@@ -31,4 +31,11 @@ public record TelemetryData(
                 .map(v -> v instanceof Number n ? n.intValue() : null);
     }
 
+    /**
+     * Validates that the telemetry contains a non-zero latitude and longitude.
+     * UgCS reports 0.0 when a coordinate wasn't present; we treat that as invalid.
+     */
+    public boolean isValidLocation() {
+        return location != null && location.latitude() != 0.0 && location.longitude() != 0.0;
+    }
 }
