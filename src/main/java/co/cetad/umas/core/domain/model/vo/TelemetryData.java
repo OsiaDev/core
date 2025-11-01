@@ -32,10 +32,11 @@ public record TelemetryData(
     }
 
     /**
-     * Validates that the telemetry contains a non-zero latitude and longitude.
+     * Returns the location only when it is valid (non-null and non-zero lat/lon).
      * UgCS reports 0.0 when a coordinate wasn't present; we treat that as invalid.
      */
-    public boolean isValidLocation() {
-        return location != null && location.latitude() != 0.0 && location.longitude() != 0.0;
+    public Optional<DroneLocation> isNewDroneLocationValid() {
+        return Optional.ofNullable(location)
+                .filter(loc -> loc.latitude() != 0.0 && loc.longitude() != 0.0);
     }
 }

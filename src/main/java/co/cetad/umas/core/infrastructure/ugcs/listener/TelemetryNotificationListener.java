@@ -6,6 +6,7 @@ import com.ugcs.ucs.client.ServerNotification;
 import com.ugcs.ucs.client.ServerNotificationListener;
 import com.ugcs.ucs.proto.DomainProto;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import reactor.core.publisher.Sinks;
 
 import java.time.LocalDateTime;
@@ -37,40 +38,47 @@ public record TelemetryNotificationListener(
             );
 
             // Validate latitude/longitude before emitting to Kafka using TelemetryData API
-            boolean valid = telemetryData.isValidLocation();
+            var droneLocationValid = telemetryData.isNewDroneLocationValid();
 
-            if (!valid) {
-                // Try to enrich from cache replacing zero coords with cached ones
-                var cached = droneCache.getTelemetry(telemetryData.vehicleId());
-
-                var newDrone = cached.map(droneCached -> {
-                    return new TelemetryData(
-                            droneCached.vehicleId(),
-                            droneCached.location(),
-                            telemetryData.fields(),
-                            telemetryData.timestamp()
-                    );
-                });
-
-                newDrone.ifPresent(drone -> {
-                    droneCache.setTelemetry(telemetryData.vehicleId(), drone);
-                });
-            }
-
-            if (valid) {
-                // Update cache and emit
-                droneCache.setTelemetry(telemetryData.vehicleId(), telemetryData);
-                var emitResult = telemetrySink.tryEmitNext(telemetryData);
-                if (emitResult.isFailure()) {
-                    log.warn("Failed to emit telemetry: {}", emitResult);
-                }
-            } else {
-                log.debug("Skipping telemetry emission for vehicle {} due to invalid lat/lon and no cache", telemetryData.vehicleId());
-            }
+            droneLocationValid.ifPresentOrElse(
+                    onNewDroneLocation(telemetryData),
+                    emptyDroneLocation(telemetryData)
+            );
 
         } catch (Exception e) {
             log.error("Error processing telemetry notification", e);
         }
+    }
+
+    @NotNull
+    private Runnable emptyDroneLocation(TelemetryData telemetryData) {
+        return () -> {
+            // Invalid location: try to enrich from cache replacing zero coords with cached ones
+            var cached = droneCache.getTelemetry(telemetryData.vehicleId());
+
+            var newDrone = cached.map(droneCached -> new TelemetryData(
+                    droneCached.vehicleId(),
+                    droneCached.location(),
+                    telemetryData.fields(),
+                    telemetryData.timestamp()
+            ));
+
+            newDrone.ifPresent(drone -> droneCache.setTelemetry(telemetryData.vehicleId(), drone));
+            // Keep current behavior: do not emit when invalid
+            log.debug("Skipping telemetry emission for vehicle {} due to invalid lat/lon and no cache", telemetryData.vehicleId());
+        };
+    }
+
+    @NotNull
+    private Consumer<DroneLocation> onNewDroneLocation(TelemetryData telemetryData) {
+        return loc -> {
+            // Valid location: update cache and emit
+            droneCache.setTelemetry(telemetryData.vehicleId(), telemetryData);
+            var emitResult = telemetrySink.tryEmitNext(telemetryData);
+            if (emitResult.isFailure()) {
+                log.warn("Failed to emit telemetry: {}", emitResult);
+            }
+        };
     }
 
     private TelemetryData processTelemetry(
@@ -87,8 +95,12 @@ public record TelemetryNotificationListener(
             var value = telemetry.getValue();
 
             processTelemetryField(field, value, fields,
-                    v -> { latRef[0] = v; },
-                    v -> { lonRef[0] = v; },
+                    v -> {
+                        latRef[0] = v;
+                    },
+                    v -> {
+                        lonRef[0] = v;
+                    },
                     v -> altRef[0] = v
             );
         }
