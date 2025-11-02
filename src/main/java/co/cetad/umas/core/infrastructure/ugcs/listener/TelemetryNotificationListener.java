@@ -72,12 +72,34 @@ public record TelemetryNotificationListener(
     @NotNull
     private Consumer<DroneLocation> onNewDroneLocation(TelemetryData telemetryData) {
         return loc -> {
-            // Valid location: update cache and emit
-            droneCache.setTelemetry(telemetryData.vehicleId(), telemetryData);
-            var emitResult = telemetrySink.tryEmitNext(telemetryData);
-            if (emitResult.isFailure()) {
-                log.warn("Failed to emit telemetry: {}", emitResult);
-            }
+            var droneOld = droneCache.getTelemetry(telemetryData.vehicleId());
+            var newDrone = droneOld.map(droned -> {
+                var latitude = loc.latitude();
+                if (latitude == 0.0) {
+                    latitude = droned.location().latitude();
+                }
+                var longitude = loc.longitude();
+                if (longitude == 0.0) {
+                    longitude = droned.location().longitude();
+                }
+                return new TelemetryData(
+                        droned.vehicleId(),
+                        DroneLocation.of(latitude, longitude, telemetryData.location().altitude()),
+                        telemetryData.fields(),
+                        telemetryData.timestamp()
+                );
+            });
+            newDrone.ifPresentOrElse(drone -> {
+                // Valid location: update cache and emit
+                droneCache.setTelemetry(telemetryData.vehicleId(), drone);
+
+                var emitResult = telemetrySink.tryEmitNext(drone);
+                if (emitResult.isFailure()) {
+                    log.warn("Failed to emit telemetry: {}", emitResult);
+                }
+            }, () -> {
+                droneCache.setTelemetry(telemetryData.vehicleId(), telemetryData);
+            });
         };
     }
 

@@ -23,14 +23,7 @@ import java.time.Duration;
 public class RedisConfig {
 
     @Bean
-    public GenericJackson2JsonRedisSerializer jackson2JsonRedisSerializer() {
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);
-        // Safe default typing to allow polymorphic types if needed
-        mapper.activateDefaultTyping(
-                BasicPolymorphicTypeValidator.builder().allowIfSubType("co.cetad.umas").build(),
-                ObjectMapper.DefaultTyping.NON_FINAL
-        );
+    public GenericJackson2JsonRedisSerializer jackson2JsonRedisSerializer(ObjectMapper mapper) {
         return new GenericJackson2JsonRedisSerializer(mapper);
     }
 

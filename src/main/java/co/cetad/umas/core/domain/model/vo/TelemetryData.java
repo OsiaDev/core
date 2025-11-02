@@ -37,6 +37,6 @@ public record TelemetryData(
      */
     public Optional<DroneLocation> isNewDroneLocationValid() {
         return Optional.ofNullable(location)
-                .filter(loc -> loc.latitude() != 0.0 && loc.longitude() != 0.0);
+                .filter(loc -> loc.latitude() != 0.0 || loc.longitude() != 0.0);
     }
 }
