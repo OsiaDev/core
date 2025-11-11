@@ -20,8 +20,7 @@ public class TelemetryPublisher implements EventPublisher<TelemetryData> {
 
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final KafkaTopicsProperties topics;
-    private final ObjectMapper objectMapper = new ObjectMapper()
-            .registerModule(new JavaTimeModule());
+    private final ObjectMapper objectMapper;
 
     @Override
     public Mono<Void> publish(TelemetryData telemetry) {

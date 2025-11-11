@@ -6,6 +6,7 @@ import com.ugcs.ucs.client.ServerNotification;
 import com.ugcs.ucs.client.ServerNotificationListener;
 import com.ugcs.ucs.proto.DomainProto;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import reactor.core.publisher.Sinks;
 
 import java.time.LocalDateTime;
@@ -16,7 +17,8 @@ import java.util.function.Consumer;
 
 @Slf4j
 public record TelemetryNotificationListener(
-        Sinks.Many<TelemetryData> telemetrySink
+        Sinks.Many<TelemetryData> telemetrySink,
+        co.cetad.umas.core.domain.ports.out.DroneCache droneCache
 ) implements ServerNotificationListener {
 
     @Override
@@ -30,20 +32,75 @@ public record TelemetryNotificationListener(
             var telemetryEvent = wrapper.getTelemetryEvent();
             var vehicle = telemetryEvent.getVehicle();
 
-            var telemetryData = processTelemetry(
+            final var telemetryData = processTelemetry(
                     vehicle.getName(),
                     telemetryEvent.getTelemetryList()
             );
 
-            var emitResult = telemetrySink.tryEmitNext(telemetryData);
+            // Validate latitude/longitude before emitting to Kafka using TelemetryData API
+            var droneLocationValid = telemetryData.isNewDroneLocationValid();
 
-            if (emitResult.isFailure()) {
-                log.warn("Failed to emit telemetry: {}", emitResult);
-            }
+            droneLocationValid.ifPresentOrElse(
+                    onNewDroneLocation(telemetryData),
+                    emptyDroneLocation(telemetryData)
+            );
 
         } catch (Exception e) {
             log.error("Error processing telemetry notification", e);
         }
+    }
+
+    @NotNull
+    private Runnable emptyDroneLocation(TelemetryData telemetryData) {
+        return () -> {
+            // Invalid location: try to enrich from cache replacing zero coords with cached ones
+            var cached = droneCache.getTelemetry(telemetryData.vehicleId());
+
+            var newDrone = cached.map(droneCached -> new TelemetryData(
+                    droneCached.vehicleId(),
+                    droneCached.location(),
+                    telemetryData.fields(),
+                    telemetryData.timestamp()
+            ));
+
+            newDrone.ifPresent(drone -> droneCache.setTelemetry(telemetryData.vehicleId(), drone));
+            // Keep current behavior: do not emit when invalid
+            log.debug("Skipping telemetry emission for vehicle {} due to invalid lat/lon and no cache", telemetryData.vehicleId());
+        };
+    }
+
+    @NotNull
+    private Consumer<DroneLocation> onNewDroneLocation(TelemetryData telemetryData) {
+        return loc -> {
+            var droneOld = droneCache.getTelemetry(telemetryData.vehicleId());
+            var newDrone = droneOld.map(droned -> {
+                var latitude = loc.latitude();
+                if (latitude == 0.0) {
+                    latitude = droned.location().latitude();
+                }
+                var longitude = loc.longitude();
+                if (longitude == 0.0) {
+                    longitude = droned.location().longitude();
+                }
+                return new TelemetryData(
+                        droned.vehicleId(),
+                        DroneLocation.of(latitude, longitude, telemetryData.location().altitude()),
+                        telemetryData.fields(),
+                        telemetryData.timestamp()
+                );
+            });
+            newDrone.ifPresentOrElse(drone -> {
+                // Valid location: update cache and emit
+                droneCache.setTelemetry(telemetryData.vehicleId(), drone);
+
+                var emitResult = telemetrySink.tryEmitNext(drone);
+                if (emitResult.isFailure()) {
+                    log.warn("Failed to emit telemetry: {}", emitResult);
+                }
+            }, () -> {
+                droneCache.setTelemetry(telemetryData.vehicleId(), telemetryData);
+            });
+        };
     }
 
     private TelemetryData processTelemetry(
@@ -60,8 +117,12 @@ public record TelemetryNotificationListener(
             var value = telemetry.getValue();
 
             processTelemetryField(field, value, fields,
-                    v -> latRef[0] = v,
-                    v -> lonRef[0] = v,
+                    v -> {
+                        latRef[0] = v;
+                    },
+                    v -> {
+                        lonRef[0] = v;
+                    },
                     v -> altRef[0] = v
             );
         }
