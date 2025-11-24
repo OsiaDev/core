@@ -38,12 +38,8 @@ public record TelemetryNotificationListener(
             );
 
             // Validate latitude/longitude before emitting to Kafka using TelemetryData API
-            var droneLocationValid = telemetryData.isNewDroneLocationValid();
 
-            droneLocationValid.ifPresentOrElse(
-                    onNewDroneLocation(telemetryData),
-                    emptyDroneLocation(telemetryData)
-            );
+            handleTelemetry(telemetryData);
 
         } catch (Exception e) {
             log.error("Error processing telemetry notification", e);
@@ -69,38 +65,72 @@ public record TelemetryNotificationListener(
         };
     }
 
-    @NotNull
-    private Consumer<DroneLocation> onNewDroneLocation(TelemetryData telemetryData) {
-        return loc -> {
-            var droneOld = droneCache.getTelemetry(telemetryData.vehicleId());
-            var newDrone = droneOld.map(droned -> {
-                var latitude = loc.latitude();
-                if (latitude == 0.0) {
-                    latitude = droned.location().latitude();
-                }
-                var longitude = loc.longitude();
-                if (longitude == 0.0) {
-                    longitude = droned.location().longitude();
-                }
-                return new TelemetryData(
-                        droned.vehicleId(),
-                        DroneLocation.of(latitude, longitude, telemetryData.location().altitude()),
-                        telemetryData.fields(),
-                        telemetryData.timestamp()
-                );
-            });
-            newDrone.ifPresentOrElse(drone -> {
-                // Valid location: update cache and emit
-                droneCache.setTelemetry(telemetryData.vehicleId(), drone);
+    private void handleTelemetry(TelemetryData newData) {
+        var vehicleId = newData.vehicleId();
+        var cachedOpt = droneCache.getTelemetry(vehicleId);
 
-                var emitResult = telemetrySink.tryEmitNext(drone);
-                if (emitResult.isFailure()) {
-                    log.warn("Failed to emit telemetry: {}", emitResult);
-                }
-            }, () -> {
-                droneCache.setTelemetry(telemetryData.vehicleId(), telemetryData);
-            });
-        };
+        // New raw values
+        double newLat = newData.location().latitude();
+        double newLon = newData.location().longitude();
+        double newAlt = newData.location().altitude();
+
+        // Previous values
+        double prevLat = cachedOpt.map(c -> c.location().latitude()).orElse(0.0);
+        double prevLon = cachedOpt.map(c -> c.location().longitude()).orElse(0.0);
+        double prevAlt = cachedOpt.map(c -> c.location().altitude()).orElse(0.0);
+
+        // ---------------------------
+        // 1. RECONSTRUIR COORDENADAS
+        // ---------------------------
+
+        // If new lat is 0, use previous (if exists)
+        double finalLat = (newLat == 0.0) ? prevLat : newLat;
+
+        // If new lon is 0, use previous (if exists)
+        double finalLon = (newLon == 0.0) ? prevLon : newLon;
+
+        // If alt is 0 but previous exists, reuse previous
+        double finalAlt = (newAlt == 0.0 && prevAlt != 0.0) ? prevAlt : newAlt;
+
+        // ---------------------------
+        // 2. VALIDATE THAT WE HAVE A REAL LOCATION
+        // ---------------------------
+        if (finalLat == 0.0 || finalLon == 0.0) {
+            // ❌ We cannot emit because we still don't have full coordinates
+            // But: we store partial values in cache
+            droneCache.setTelemetry(vehicleId, newData);
+            log.debug("Partial telemetry cached for {} (missing lat/lon)", vehicleId);
+            return;
+        }
+
+        // ---------------------------
+        // 3. COMPARE WITH PREVIOUS LOCATION (avoid duplicates)
+        // ---------------------------
+        if (prevLat == finalLat && prevLon == finalLon) {
+            // Same location → ignore, do NOT emit
+            log.debug("Skipping telemetry for {} (same location as previous)", vehicleId);
+            return;
+        }
+
+        // ---------------------------
+        // 4. BUILD FINAL TELEMETRY
+        // ---------------------------
+        var finalTelemetry = new TelemetryData(
+                vehicleId,
+                DroneLocation.of(finalLat, finalLon, finalAlt),
+                newData.fields(),
+                newData.timestamp()
+        );
+
+        // ---------------------------
+        // 5. SAVE TO CACHE AND EMIT
+        // ---------------------------
+        droneCache.setTelemetry(vehicleId, finalTelemetry);
+
+        var result = telemetrySink.tryEmitNext(finalTelemetry);
+        if (result.isFailure()) {
+            log.warn("Failed to emit telemetry for {}: {}", vehicleId, result);
+        }
     }
 
     private TelemetryData processTelemetry(
@@ -127,12 +157,21 @@ public record TelemetryNotificationListener(
             );
         }
 
+        double latRounded = roundToDecimals(latRef[0], 5);
+        double lonRounded = roundToDecimals(lonRef[0], 5);
+        double altRounded = roundToDecimals(altRef[0], 2);
+
         return new TelemetryData(
                 vehicleId,
-                DroneLocation.of(latRef[0], lonRef[0], altRef[0]),
+                DroneLocation.of(latRounded, lonRounded, altRounded),
                 fields,
                 LocalDateTime.now()
         );
+    }
+
+    private double roundToDecimals(double value, int decimals) {
+        double factor = Math.pow(10, decimals);
+        return Math.round(value * factor) / factor;
     }
 
     private void processTelemetryField(

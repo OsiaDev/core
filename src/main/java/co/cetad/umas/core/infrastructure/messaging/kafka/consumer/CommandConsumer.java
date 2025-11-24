@@ -30,14 +30,8 @@ public class CommandConsumer {
     )
     public void consumeCommand(
             @Payload String message,
-            @Header(KafkaHeaders.RECEIVED_KEY) String key,
-            @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
-            @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
-            @Header(KafkaHeaders.OFFSET) long offset,
             Acknowledgment acknowledgment
     ) {
-        log.info("Received command - Topic: {}, Partition: {}, Offset: {}, Key: {}",
-                topic, partition, offset, key);
 
         try {
             var command = objectMapper.readValue(message, CommandExecutionDTO.class);

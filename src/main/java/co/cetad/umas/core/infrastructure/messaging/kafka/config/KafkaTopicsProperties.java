@@ -15,6 +15,8 @@ public class KafkaTopicsProperties {
 
     private String commands = "umas.drone.execute";
 
+    private String routes = "umas.drone.route.execute";
+
     private String vehicleStatus = "umas.drone.vehicle.status";
 
     private String routeStatus = "umas.drone.route.status";

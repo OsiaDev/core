@@ -39,6 +39,7 @@ public class UgcsConnectionService implements VehicleConnectionManager {
                 .doOnSuccess(v -> {
                     log.info("Successfully connected to UgCS Server");
                     notifyStatus(VehicleStatusDTO.connected("system"));
+                    disconnect();
                 })
                 .doOnError(e -> {
                     log.error("Failed to connect after retries", e);
@@ -66,10 +67,10 @@ public class UgcsConnectionService implements VehicleConnectionManager {
         return ugcsClient.subscribeTelemetry()
                 .publishOn(Schedulers.boundedElastic())
                 .doOnNext(telemetry -> {
-                    log.debug("Received telemetry for vehicle: {} at ({}, {})",
+                    /*log.debug("Received telemetry for vehicle: {} at ({}, {})",
                             telemetry.vehicleId(),
                             telemetry.location().latitude(),
-                            telemetry.location().longitude());
+                            telemetry.location().longitude());*/
 
                     telemetryPublisher.publish(telemetry)
                             .doOnError(e -> log.error("Failed to publish telemetry", e))

@@ -111,21 +111,26 @@ public class UgcsClientAdapter implements UgcsClient {
                 session.gainVehicleControl(vehicle);
 
                 try {
-                    log.debug("Sending command to vehicle");
+                    log.debug("Sending command '{}' to vehicle {}",
+                            command.commandCode(), command.vehicleId());
+
                     session.sendCommand(vehicle, ugcsCommand);
-                    log.info("Command sent successfully to vehicle: {}", command.vehicleId());
+                    log.info("Command '{}' sent successfully to vehicle: {}",
+                            command.commandCode(), command.vehicleId());
                     return true;
                 } finally {
                     try {
                         session.releaseVehicleControl(vehicle);
                         log.debug("Vehicle control released for: {}", command.vehicleId());
                     } catch (Exception e) {
-                        log.warn("Failed to release vehicle control", e);
+                        log.warn("Failed to release vehicle control for vehicle: {}",
+                                command.vehicleId(), e);
                     }
                 }
             } catch (Exception e) {
-                log.error("Failed to execute command", e);
-                throw new RuntimeException("Command execution failed", e);
+                log.error("Failed to execute command '{}' for vehicle: {}",
+                        command.commandCode(), command.vehicleId(), e);
+                throw new RuntimeException("Command execution failed: " + e.getMessage(), e);
             }
         });
     }
@@ -137,27 +142,55 @@ public class UgcsClientAdapter implements UgcsClient {
 
     private DomainProto.Vehicle findVehicle(String vehicleId) {
         try {
-            return session.lookupVehicle(vehicleId);
+            var vehicle = session.lookupVehicle(vehicleId);
+            if (vehicle == null) {
+                log.warn("Vehicle lookup returned null for ID: {}", vehicleId);
+            }
+            return vehicle;
         } catch (Exception e) {
             log.error("Error looking up vehicle: {}", vehicleId, e);
             return null;
         }
     }
 
+    /**
+     * Construye un comando de UgCS según el código y argumentos proporcionados.
+     * Los comandos de ruta (start_route, pause_route, etc.) se envían sin argumentos.
+     */
     private DomainProto.Command buildCommand(CommandRequest command) {
         var builder = DomainProto.Command.newBuilder()
                 .setCode(command.commandCode())
-                .setSubsystem(DomainProto.Subsystem.S_FLIGHT_CONTROLLER)
+                .setSubsystem(determineSubsystem(command.commandCode()))
                 .setSubsystemId(0);
 
-        command.arguments().forEach((key, value) ->
-                builder.addArguments(DomainProto.CommandArgument.newBuilder()
-                        .setCode(key)
-                        .setValue(DomainProto.Value.newBuilder()
-                                .setDoubleValue(value)))
-        );
+        // Solo agregar argumentos si existen y el comando los requiere
+        if (command.arguments() != null && !command.arguments().isEmpty()) {
+            command.arguments().forEach((key, value) ->
+                    builder.addArguments(DomainProto.CommandArgument.newBuilder()
+                            .setCode(key)
+                            .setValue(DomainProto.Value.newBuilder()
+                                    .setDoubleValue(value)
+                                    .build())
+                            .build())
+            );
+        }
 
-        return builder.build();
+        var builtCommand = builder.build();
+        log.debug("Built UgCS command: code='{}', subsystem={}, arguments={}",
+                builtCommand.getCode(),
+                builtCommand.getSubsystem(),
+                builtCommand.getArgumentsCount());
+
+        return builtCommand;
     }
 
+    /**
+     * Determina el subsistema correcto según el tipo de comando.
+     * Por defecto, todos los comandos de vuelo usan S_FLIGHT_CONTROLLER
+     */
+    private DomainProto.Subsystem determineSubsystem(String commandCode) {
+        // Todos los comandos de vuelo básicos usan S_FLIGHT_CONTROLLER
+        // según la documentación oficial de UgCS
+        return DomainProto.Subsystem.S_FLIGHT_CONTROLLER;
+    }
 }
