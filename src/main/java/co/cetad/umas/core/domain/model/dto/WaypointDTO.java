@@ -1,4 +1,4 @@
-package co.cetad.umas.core.domain.model.vo;
+package co.cetad.umas.core.domain.model.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -8,12 +8,12 @@ import java.util.Objects;
  * Value Object que representa un waypoint (punto de ruta)
  * Contiene coordenadas de latitud y longitud
  */
-public record Waypoint(
+public record WaypointDTO(
         @JsonProperty("latitude") double latitude,
         @JsonProperty("longitude") double longitude
 ) {
 
-    public Waypoint {
+    public WaypointDTO {
         Objects.requireNonNull(latitude, "Latitude cannot be null");
         Objects.requireNonNull(longitude, "Longitude cannot be null");
 
@@ -30,13 +30,13 @@ public record Waypoint(
      * Factory method para crear un waypoint desde un array de coordenadas [longitude, latitude]
      * GeoJSON usa el orden [longitude, latitude]
      */
-    public static Waypoint fromGeoJsonCoordinates(double[] coordinates) {
+    public static WaypointDTO fromGeoJsonCoordinates(double[] coordinates) {
         if (coordinates == null || coordinates.length < 2) {
             throw new IllegalArgumentException("Coordinates array must have at least 2 elements");
         }
         // GeoJSON: [longitude, latitude]
         // Waypoint: (latitude, longitude)
-        return new Waypoint(coordinates[1], coordinates[0]);
+        return new WaypointDTO(coordinates[1], coordinates[0]);
     }
 
 }
