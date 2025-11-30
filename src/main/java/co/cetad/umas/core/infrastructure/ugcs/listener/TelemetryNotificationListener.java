@@ -2,6 +2,7 @@ package co.cetad.umas.core.infrastructure.ugcs.listener;
 
 import co.cetad.umas.core.domain.model.vo.DroneLocation;
 import co.cetad.umas.core.domain.model.vo.TelemetryData;
+import co.cetad.umas.core.domain.ports.out.DroneCache;
 import com.ugcs.ucs.client.ServerNotification;
 import com.ugcs.ucs.client.ServerNotificationListener;
 import com.ugcs.ucs.proto.DomainProto;
@@ -18,7 +19,7 @@ import java.util.function.Consumer;
 @Slf4j
 public record TelemetryNotificationListener(
         Sinks.Many<TelemetryData> telemetrySink,
-        co.cetad.umas.core.domain.ports.out.DroneCache droneCache
+        DroneCache droneCache
 ) implements ServerNotificationListener {
 
     @Override

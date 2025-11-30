@@ -391,46 +391,6 @@ public class UgcsClientAdapter implements UgcsClient {
     ) {
         log.debug("Building route: '{}' with {} waypoints", routeName, waypoints.size());
 
-        // Construir figura con todos los waypoints
-        DomainProto.Figure.Builder figure = DomainProto.Figure.newBuilder()
-                .setType(DomainProto.FigureType.FT_POINT);
-
-        for (int i = 0; i < waypoints.size(); i++) {
-            var wp = waypoints.get(i);
-
-            // IMPORTANTE: UgCS requiere lat/lon en RADIANES, no en grados
-            double latRadians = Math.toRadians(wp.latitude());
-            double lonRadians = Math.toRadians(wp.longitude());
-
-            figure.addPoints(DomainProto.FigurePoint.newBuilder()
-                    .setLatitude(latRadians)
-                    .setLongitude(lonRadians)
-                    .setAglAltitude(altitude)
-                    .setAltitudeType(DomainProto.AltitudeType.AT_AGL));
-        }
-
-        // Construir segmento de ruta
-        DomainProto.SegmentDefinition.Builder routeSegment = DomainProto.SegmentDefinition.newBuilder()
-                .setAlgorithmClassName("com.ugcs.ucs.service.routing.impl.WaypointAlgorithm")
-                .setFigure(figure)
-                .addParameterValues(DomainProto.ParameterValue.newBuilder()
-                        .setName("speed")
-                        .setValue(Double.toString(speed)))
-                .addParameterValues(DomainProto.ParameterValue.newBuilder()
-                        .setName("wpTurnType")
-                        .setValue("STOP_AND_TURN"))
-                .addParameterValues(DomainProto.ParameterValue.newBuilder()
-                        .setName("avoidObstacles")
-                        .setValue("true"))
-                .addParameterValues(DomainProto.ParameterValue.newBuilder()
-                        .setName("avoidTerrain")
-                        .setValue("true"))
-                .addParameterValues(DomainProto.ParameterValue.newBuilder()
-                        .setName("cornerRadius"))
-                .addParameterValues(DomainProto.ParameterValue.newBuilder()
-                        .setName("altitudeType")
-                        .setValue("AGL"));
-
         // Construir ruta completa
         DomainProto.Route.Builder route = DomainProto.Route.newBuilder()
                 .setMission(mission)
@@ -443,8 +403,49 @@ public class UgcsClientAdapter implements UgcsClient {
                 .setSafeAltitude(altitude)
                 .addFailsafes(DomainProto.Failsafe.newBuilder()
                         .setReason(DomainProto.FailsafeReason.FR_GPS_LOST)
-                        .setAction(DomainProto.FailsafeAction.FA_WAIT))
-                .addSegments(routeSegment);
+                        .setAction(DomainProto.FailsafeAction.FA_WAIT));
+
+        for (int i = 0; i < waypoints.size(); i++) {
+
+            // Construir figura con todos los waypoints
+            DomainProto.Figure.Builder figure = DomainProto.Figure.newBuilder()
+                    .setType(DomainProto.FigureType.FT_POINT);
+
+            var wp = waypoints.get(i);
+
+            // IMPORTANTE: UgCS requiere lat/lon en RADIANES, no en grados
+            double latRadians = Math.toRadians(wp.latitude());
+            double lonRadians = Math.toRadians(wp.longitude());
+
+            figure.addPoints(DomainProto.FigurePoint.newBuilder()
+                    .setLatitude(latRadians)
+                    .setLongitude(lonRadians)
+                    .setAglAltitude(altitude)
+                    .setAltitudeType(DomainProto.AltitudeType.AT_AGL));
+
+            // Construir segmento de ruta
+            DomainProto.SegmentDefinition.Builder routeSegment = DomainProto.SegmentDefinition.newBuilder()
+                    .setAlgorithmClassName("com.ugcs.ucs.service.routing.impl.WaypointAlgorithm")
+                    .setFigure(figure)
+                    .addParameterValues(DomainProto.ParameterValue.newBuilder()
+                            .setName("speed")
+                            .setValue(Double.toString(speed)))
+                    .addParameterValues(DomainProto.ParameterValue.newBuilder()
+                            .setName("wpTurnType")
+                            .setValue("STOP_AND_TURN"))
+                    .addParameterValues(DomainProto.ParameterValue.newBuilder()
+                            .setName("avoidObstacles")
+                            .setValue("true"))
+                    .addParameterValues(DomainProto.ParameterValue.newBuilder()
+                            .setName("avoidTerrain")
+                            .setValue("true"))
+                    .addParameterValues(DomainProto.ParameterValue.newBuilder()
+                            .setName("cornerRadius"))
+                    .addParameterValues(DomainProto.ParameterValue.newBuilder()
+                            .setName("altitudeType")
+                            .setValue("AGL"));
+            route.addSegments(routeSegment);
+        }
 
         if (vehicle != null) {
             route.setVehicleProfile(vehicle.getProfile());
