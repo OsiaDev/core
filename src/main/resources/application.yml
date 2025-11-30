@@ -1,5 +1,5 @@
 server:
-  port: ${PORT:8080}
+  port: ${PORT:8083}
   servlet:
     encoding:
       charset: UTF-8
@@ -21,15 +21,15 @@ spring:
 
   kafka:
     consumer:
-      bootstrap-servers: ${KAFKA_BROKERS}
+      bootstrap-servers: ${KAFKA_BROKERS:localhost:29092}
       group-id: umas-core-service
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       properties:
-        spring.json.trusted.packages: "co.cetad.umas.core.domain.model.vo"
+        spring.json.trusted.packages: "co.cetad.umas.core.domain.model.vo,co.cetad.umas.core.domain.model.dto"
     producer:
-      bootstrap-servers: ${KAFKA_BROKERS}
+      bootstrap-servers: ${KAFKA_BROKERS:localhost:29092}
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
       acks: all
@@ -42,16 +42,32 @@ kafka:
     telemetry: umas.drone.telemetry
     events: umas.drone.events
     commands: umas.drone.execute
+    routes: umas.drone.route.execute
     vehicle-status: umas.drone.vehicle.status
     route-status: umas.drone.route.status
+    mission: umas.drone.mission
+
+logging:
+  level:
+    org.apache.mina.filter.logging.LoggingFilter: OFF
+    org.apache.mina: WARN
+    org.apache.kafka.clients.consumer: OFF
+    org.springframework.kafka.listener: OFF
+    org.apache.kafka: OFF
+
+
+mission:
+  default-altitude: ${MISSION_DEFAULT_ALTITUDE:50.0}      # metros AGL
+  default-speed: ${MISSION_DEFAULT_SPEED:5.0}             # m/s
+  default-acceptance-radius: ${MISSION_DEFAULT_ACCEPTANCE_RADIUS:5.0}
 
 ugcs:
   server:
-    host: ${UGCS_HOST}
-    port: ${UGCS_PORT}
+    host: ${UGCS_HOST:192.168.246.26}
+    port: ${UGCS_PORT:3334}
   credentials:
-    login: ${UGCS_LOGIN}
-    password: ${UGCS_PASS}
+    login: ${UGCS_LOGIN:admin}
+    password: ${UGCS_PASS:admin}
   reconnect:
     enabled: true
     initial-delay: 5000
