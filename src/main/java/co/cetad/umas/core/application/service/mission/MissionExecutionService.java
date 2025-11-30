@@ -5,6 +5,7 @@ import co.cetad.umas.core.domain.model.dto.MissionExecutionDTO;
 import co.cetad.umas.core.domain.model.vo.CommandRequest;
 import co.cetad.umas.core.domain.ports.in.EventProcessor;
 import co.cetad.umas.core.domain.ports.out.UgcsClient;
+import com.ugcs.ucs.proto.DomainProto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -85,12 +86,14 @@ public class MissionExecutionService implements EventProcessor<MissionExecutionD
                     List<CompletableFuture<Boolean>> droneProcesses = new ArrayList<>();
 
                     for (MissionExecutionDTO.DroneExecution drone : mission.drones()) {
-                        CompletableFuture<Boolean> droneProcess = processDrone(
-                                mission.missionId(),
+
+                        CompletableFuture<DomainProto.Vehicle> droneProcess = processDrone(
                                 ugcsMission,
                                 drone
                         );
-                        droneProcesses.add(droneProcess);
+                        droneProcesses.add(CompletableFuture.completedFuture(true));
+
+                        ugcsClient.createMissionVehicle(ugcsMission, droneProcess);
                     }
 
                     // 3. Esperar a que todos los drones se procesen
@@ -106,8 +109,7 @@ public class MissionExecutionService implements EventProcessor<MissionExecutionD
     /**
      * Procesa un dron individual: crea/busca su ruta y la sube
      */
-    private CompletableFuture<Boolean> processDrone(
-            String missionId,
+    private CompletableFuture<DomainProto.Vehicle> processDrone(
             Object ugcsMission,
             MissionExecutionDTO.DroneExecution drone
     ) {
@@ -117,7 +119,7 @@ public class MissionExecutionService implements EventProcessor<MissionExecutionD
         // Si el dron no tiene waypoints, solo retornar true
         if (!drone.hasWaypoints()) {
             log.info("Drone {} has no waypoints, skipping route creation", drone.vehicleId());
-            return CompletableFuture.completedFuture(true);
+            return CompletableFuture.completedFuture(null);
         }
 
         String routeName = drone.routeId();
@@ -144,12 +146,10 @@ public class MissionExecutionService implements EventProcessor<MissionExecutionD
                         );
                     }
                 })
-                .thenCompose(uploadSuccess -> {
-                    if (!uploadSuccess) {
-                        throw new RuntimeException("Failed to upload route for drone: " + drone.vehicleId());
-                    }
+                .thenApply(vehicle -> {
                     // 2. Ejecutar comandos para iniciar la misión en el dron
-                    return executeCommandsForDrone(drone.vehicleId());
+                    executeCommandsForDrone(drone.vehicleId());
+                    return vehicle;
                 });
     }
 
@@ -162,8 +162,6 @@ public class MissionExecutionService implements EventProcessor<MissionExecutionD
         log.info("🎯 Executing command sequence for drone: {}", vehicleId);
 
         return executeAuto(vehicleId)
-                .thenCompose(v -> waitSeconds(2))
-                .thenCompose(v -> executeStartRoute(vehicleId))
                 .thenApply(success -> {
                     log.info("✅ Command sequence completed for drone: {}", vehicleId);
                     return true;
@@ -181,29 +179,6 @@ public class MissionExecutionService implements EventProcessor<MissionExecutionD
                     log.info("✅ AUTO command executed for: {}", vehicleId);
                     return true;
                 });
-    }
-
-    private CompletableFuture<Boolean> executeStartRoute(String vehicleId) {
-        log.info("📍 Executing START_ROUTE command for drone: {}", vehicleId);
-        var startRouteCommand = new CommandRequest(vehicleId, "start_route", Map.of());
-        return ugcsClient.executeCommand(startRouteCommand)
-                .thenApply(success -> {
-                    if (!success) {
-                        throw new RuntimeException("START_ROUTE command failed for: " + vehicleId);
-                    }
-                    log.info("✅ START_ROUTE command executed for: {}", vehicleId);
-                    return true;
-                });
-    }
-
-    private CompletableFuture<Void> waitSeconds(int seconds) {
-        return CompletableFuture.runAsync(() -> {
-            try {
-                Thread.sleep(seconds * 1000L);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
     }
 
     /**

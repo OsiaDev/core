@@ -40,6 +40,12 @@ public interface UgcsClient {
      */
     CompletableFuture<Optional<DomainProto.Route>> findRouteByName(String routeName);
 
+
+    CompletableFuture<Boolean> createMissionVehicle(
+            Object ugcsMission,
+            DomainProto.Vehicle vehicle
+    );
+
     /**
      * Crea una nueva ruta y la sube al vehículo
      * @param ugcsMission Misión de UgCS a la que pertenece
@@ -50,7 +56,7 @@ public interface UgcsClient {
      * @param speed Velocidad por defecto
      * @return true si se creó y subió exitosamente
      */
-    CompletableFuture<Boolean> createAndUploadRoute(
+    CompletableFuture<DomainProto.Vehicle> createAndUploadRoute(
             Object ugcsMission,
             String vehicleId,
             String routeName,
@@ -65,7 +71,7 @@ public interface UgcsClient {
      * @param existingRoute Ruta existente (DomainProto.Route)
      * @return true si se subió exitosamente
      */
-    CompletableFuture<Boolean> uploadExistingRoute(String vehicleId, Object existingRoute);
+    CompletableFuture<DomainProto.Vehicle> uploadExistingRoute(String vehicleId, Object existingRoute);
 
     /**
      * Información de una ruta

@@ -217,7 +217,39 @@ public class UgcsClientAdapter implements UgcsClient {
     }
 
     @Override
-    public CompletableFuture<Boolean> createAndUploadRoute(
+    public CompletableFuture<Boolean> createMissionVehicle(Object ugcsMission, DomainProto.Vehicle vehicle) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                if (!connected.get()) {
+                    throw new IllegalStateException("Not connected to UgCS Server");
+                }
+
+                if (!(ugcsMission instanceof DomainProto.Mission)) {
+                    throw new IllegalArgumentException("ugcsMission must be of type DomainProto.MissionVehicle");
+                }
+
+                DomainProto.Mission mission = (DomainProto.Mission) ugcsMission;
+
+
+                DomainProto.MissionVehicle newMissionVehicle = DomainProto.MissionVehicle.newBuilder()
+                        .setMission(mission)
+                        .setVehicle(vehicle)
+                        .build();
+
+                DomainProto.DomainObjectWrapper missionVehicleWrapper = DomainProto.DomainObjectWrapper.newBuilder()
+                        .setMissionVehicle(newMissionVehicle)
+                        .build();
+
+                session.createOrUpdateObject(missionVehicleWrapper, DomainProto.MissionVehicle.class);
+            } catch (Exception e) {
+                throw new RuntimeException("MissionVehicle creation failed: " + e.getMessage(), e);
+            }
+            return true;
+        });
+    }
+
+    @Override
+    public CompletableFuture<DomainProto.Vehicle> createAndUploadRoute(
             Object ugcsMission,
             String vehicleId,
             String routeName,
@@ -254,13 +286,13 @@ public class UgcsClientAdapter implements UgcsClient {
                         .setRoute(route)
                         .build();
 
-                route = session.createOrUpdateObject(routeWrapper, DomainProto.Route.class).getRoute();
+                route = session.createOrUpdateObject(routeWrapper, route.getClass()).getRoute();
                 log.info("✅ Route '{}' saved to server", route.getName());
 
                 // 4. Subir la ruta al vehículo
                 uploadRouteToVehicle(vehicle, route);
 
-                return true;
+                return vehicle;
 
             } catch (Exception e) {
                 log.error("Failed to create and upload route '{}' for vehicle: {}",
@@ -271,7 +303,7 @@ public class UgcsClientAdapter implements UgcsClient {
     }
 
     @Override
-    public CompletableFuture<Boolean> uploadExistingRoute(String vehicleId, Object existingRoute) {
+    public CompletableFuture<DomainProto.Vehicle> uploadExistingRoute(String vehicleId, Object existingRoute) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 if (!connected.get()) {
@@ -291,7 +323,7 @@ public class UgcsClientAdapter implements UgcsClient {
                 }
 
                 uploadRouteToVehicle(vehicle, route);
-                return true;
+                return vehicle;
 
             } catch (Exception e) {
                 log.error("Failed to upload existing route for vehicle: {}", vehicleId, e);
