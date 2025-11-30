@@ -44,7 +44,7 @@ public class UgcsClientAdapter implements UgcsClient {
                     client = new Client(serverAddress);
 
                     var listener = new TelemetryNotificationListener(telemetrySink, droneCache);
-                    client.addNotificationListener(listener);
+                    //client.addNotificationListener(listener);
 
                     client.connect();
 

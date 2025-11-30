@@ -6,8 +6,6 @@ import co.cetad.umas.core.domain.model.dto.RouteExecutionDTO;
 import co.cetad.umas.core.domain.model.dto.RouteExecutionResult;
 import co.cetad.umas.core.domain.model.dto.WaypointDTO;
 import co.cetad.umas.core.domain.ports.in.RouteExecutor;
-import co.cetad.umas.core.domain.ports.out.VehicleStateMonitor;
-import co.cetad.umas.core.infrastructure.config.RouteExecutionConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,5 +28,8 @@ import java.util.concurrent.CompletableFuture;
 public class RouteExecutionService implements RouteExecutor {
 
 
-
+    @Override
+    public CompletableFuture<RouteExecutionResult> executeRoute(RouteExecutionDTO route) {
+        return null;
+    }
 }
