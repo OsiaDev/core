@@ -429,10 +429,7 @@ public class UgcsClientAdapter implements UgcsClient {
                         .setName("cornerRadius"))
                 .addParameterValues(DomainProto.ParameterValue.newBuilder()
                         .setName("altitudeType")
-                        .setValue("AGL"))
-                .addParameterValues(DomainProto.ParameterValue.newBuilder()
-                        .setName("acceptanceRadius")
-                        .setValue("5.0"));  // Radio de aceptación en metros
+                        .setValue("AGL"));
 
         // Construir ruta completa
         DomainProto.Route.Builder route = DomainProto.Route.newBuilder()
