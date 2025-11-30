@@ -13,7 +13,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -72,6 +71,7 @@ public class MissionExecutionService implements EventProcessor<MissionExecutionD
 
     /**
      * Procesa toda la misión: crea/busca la mission y procesa cada dron
+     * CORREGIDO: Ahora procesa correctamente cada dron de forma asíncrona
      */
     private CompletableFuture<Boolean> processMission(MissionExecutionDTO mission) {
         log.info("Processing mission: {} with {} drones",
@@ -82,95 +82,169 @@ public class MissionExecutionService implements EventProcessor<MissionExecutionD
                 .thenCompose(ugcsMission -> {
                     log.info("✅ Mission ready: {}", mission.missionId());
 
-                    // 2. Procesar cada dron en paralelo
-                    List<CompletableFuture<Boolean>> droneProcesses = new ArrayList<>();
+                    // 2. Procesar cada dron de forma asíncrona y recolectar los CompletableFutures
+                    List<CompletableFuture<Boolean>> droneProcessingFutures = mission.drones().stream()
+                            .map(drone -> processSingleDrone(ugcsMission, drone, mission.missionId()))
+                            .toList();
 
-                    for (MissionExecutionDTO.DroneExecution drone : mission.drones()) {
-
-                        CompletableFuture<DomainProto.Vehicle> droneProcess = processDrone(
-                                ugcsMission,
-                                drone
-                        );
-                        droneProcesses.add(CompletableFuture.completedFuture(true));
-
-                        ugcsClient.createMissionVehicle(ugcsMission, droneProcess);
-                    }
-
-                    // 3. Esperar a que todos los drones se procesen
+                    // 3. Esperar a que todos los drones se procesen con allOf
                     return CompletableFuture.allOf(
-                            droneProcesses.toArray(new CompletableFuture[0])
+                            droneProcessingFutures.toArray(new CompletableFuture[0])
                     ).thenApply(v -> {
-                        log.info("✅ All drones processed for mission: {}", mission.missionId());
+                        log.info("✅ All {} drones processed for mission: {}",
+                                mission.drones().size(), mission.missionId());
                         return true;
                     });
                 });
     }
 
     /**
-     * Procesa un dron individual: crea/busca su ruta y la sube
+     * Procesa un dron individual de forma completa:
+     * 1. Crea/sube la ruta
+     * 2. Registra el vehículo en la misión
+     * 3. Ejecuta comandos
+     *
+     * @return CompletableFuture<Boolean> indicando éxito del procesamiento
      */
-    private CompletableFuture<DomainProto.Vehicle> processDrone(
+    private CompletableFuture<Boolean> processSingleDrone(
             Object ugcsMission,
-            MissionExecutionDTO.DroneExecution drone
+            MissionExecutionDTO.DroneExecution drone,
+            String missionId
     ) {
-        log.info("Processing drone: {} with {} waypoints",
+        log.info("📍 Processing drone: {} with {} waypoints",
                 drone.vehicleId(), drone.waypoints().size());
 
-        // Si el dron no tiene waypoints, solo retornar true
+        // 1. Procesar la ruta del dron
+        return processDroneRoute(ugcsMission, drone, missionId)
+                .thenCompose(vehicle -> {
+                    // 2. Si no hay vehicle (sin waypoints), completar sin registrar
+                    if (vehicle == null) {
+                        log.info("Drone {} has no route to register", drone.vehicleId());
+                        return CompletableFuture.completedFuture(true);
+                    }
+
+                    // 3. Registrar el vehículo en la misión
+                    return registerVehicleInMission(ugcsMission, vehicle)
+                            .thenCompose(registered -> {
+                                // 4. Ejecutar comandos para el dron
+                                if (registered) {
+                                    return executeCommandsForDrone(drone.vehicleId());
+                                }
+                                log.warn("Failed to register vehicle {} in mission", drone.vehicleId());
+                                return CompletableFuture.completedFuture(false);
+                            });
+                });
+    }
+
+    /**
+     * Procesa la ruta de un dron: crea o busca la ruta y la sube al vehículo
+     *
+     * @return CompletableFuture<DomainProto.Vehicle> el vehículo con la ruta cargada, o null si no hay waypoints
+     */
+    private CompletableFuture<DomainProto.Vehicle> processDroneRoute(
+            Object ugcsMission,
+            MissionExecutionDTO.DroneExecution drone,
+            String missionId
+    ) {
+        // Si el dron no tiene waypoints, retornar null
         if (!drone.hasWaypoints()) {
             log.info("Drone {} has no waypoints, skipping route creation", drone.vehicleId());
             return CompletableFuture.completedFuture(null);
         }
 
-        String routeName = drone.routeId();
+        String routeName = generateRouteName(drone, missionId);
 
-        // 1. Buscar si la ruta ya existe
+        // Buscar si la ruta ya existe
         return ugcsClient.findRouteByName(routeName)
-                .thenCompose(routeOpt -> {
-                    if (routeOpt.isPresent()) {
-                        log.info("✅ Found existing route: '{}' for drone: {}",
-                                routeName, drone.vehicleId());
-                        // Ruta existe, subirla al vehículo
-                        return ugcsClient.uploadExistingRoute(drone.vehicleId(), routeOpt.get());
+                .thenCompose(existingRoute -> {
+                    if (existingRoute.isPresent()) {
+                        log.info("✅ Found existing route: {}, uploading to drone", routeName);
+                        return uploadExistingRouteToVehicle(drone.vehicleId(), existingRoute.get());
                     } else {
-                        log.info("Route '{}' not found, creating new route for drone: {}",
-                                routeName, drone.vehicleId());
-                        // Ruta no existe, crearla
-                        return ugcsClient.createAndUploadRoute(
-                                ugcsMission,
-                                drone.vehicleId(),
-                                routeName,
-                                drone.waypoints(),
-                                defaultAltitude,
-                                defaultSpeed
-                        );
+                        log.info("Creating new route: {} for drone: {}", routeName, drone.vehicleId());
+                        return createNewRouteForVehicle(ugcsMission, drone, routeName);
                     }
-                })
+                });
+    }
+
+    /**
+     * Sube una ruta existente a un vehículo
+     */
+    private CompletableFuture<DomainProto.Vehicle> uploadExistingRouteToVehicle(
+            String vehicleId,
+            DomainProto.Route existingRoute
+    ) {
+        return ugcsClient.uploadExistingRoute(vehicleId, existingRoute)
                 .thenApply(vehicle -> {
-                    // 2. Ejecutar comandos para iniciar la misión en el dron
-                    executeCommandsForDrone(drone.vehicleId());
+                    log.info("✅ Existing route uploaded to drone: {}", vehicleId);
                     return vehicle;
+                });
+    }
+
+    /**
+     * Crea una nueva ruta y la sube al vehículo
+     */
+    private CompletableFuture<DomainProto.Vehicle> createNewRouteForVehicle(
+            Object ugcsMission,
+            MissionExecutionDTO.DroneExecution drone,
+            String routeName
+    ) {
+        return ugcsClient.createAndUploadRoute(
+                ugcsMission,
+                drone.vehicleId(),
+                routeName,
+                drone.waypoints(),
+                defaultAltitude,
+                defaultSpeed
+        ).thenApply(vehicle -> {
+            log.info("✅ New route created and uploaded for drone: {}", drone.vehicleId());
+            return vehicle;
+        });
+    }
+
+    /**
+     * Registra un vehículo en una misión
+     */
+    private CompletableFuture<Boolean> registerVehicleInMission(
+            Object ugcsMission,
+            DomainProto.Vehicle vehicle
+    ) {
+        log.info("📝 Registering vehicle {} in mission", vehicle.getName());
+        return ugcsClient.createMissionVehicle(ugcsMission, vehicle)
+                .thenApply(success -> {
+                    if (success) {
+                        log.info("✅ Vehicle {} registered in mission", vehicle.getName());
+                    } else {
+                        log.warn("⚠️ Failed to register vehicle {} in mission", vehicle.getName());
+                    }
+                    return success;
                 });
     }
 
     /**
      * Ejecuta la secuencia de comandos para un dron:
      * 1. AUTO (modo automático)
-     * 2. START_ROUTE (iniciar la ruta)
+     *
+     * Puede extenderse fácilmente para agregar más comandos en secuencia
      */
     private CompletableFuture<Boolean> executeCommandsForDrone(String vehicleId) {
         log.info("🎯 Executing command sequence for drone: {}", vehicleId);
 
-        return executeAuto(vehicleId)
+        return executeAutoCommand(vehicleId)
                 .thenApply(success -> {
                     log.info("✅ Command sequence completed for drone: {}", vehicleId);
-                    return true;
+                    return success;
                 });
     }
 
-    private CompletableFuture<Boolean> executeAuto(String vehicleId) {
+    /**
+     * Ejecuta el comando AUTO para un dron
+     */
+    private CompletableFuture<Boolean> executeAutoCommand(String vehicleId) {
         log.info("📍 Executing AUTO command for drone: {}", vehicleId);
-        var autoCommand = new CommandRequest(vehicleId, "auto", Map.of());
+
+        CommandRequest autoCommand = new CommandRequest(vehicleId, "auto", Map.of());
+
         return ugcsClient.executeCommand(autoCommand)
                 .thenApply(success -> {
                     if (!success) {
@@ -196,7 +270,7 @@ public class MissionExecutionService implements EventProcessor<MissionExecutionD
 
     private CommandResultDTO buildSuccessResult(MissionExecutionDTO mission) {
         return new CommandResultDTO(
-                "mission", // Ahora es una misión completa, no un vehículo específico
+                "mission",
                 "execute_mission:" + mission.missionId(),
                 CommandResultDTO.CommandStatus.SUCCESS,
                 String.format("Mission executed successfully for %d drones", mission.drones().size()),
@@ -207,7 +281,7 @@ public class MissionExecutionService implements EventProcessor<MissionExecutionD
     private CommandResultDTO buildErrorResult(MissionExecutionDTO mission, Throwable error) {
         log.error("❌ Failed to execute mission: {}", mission.missionId(), error);
 
-        var status = determineErrorStatus(error);
+        CommandResultDTO.CommandStatus status = determineErrorStatus(error);
         return new CommandResultDTO(
                 "mission",
                 "execute_mission:" + mission.missionId(),
@@ -226,4 +300,5 @@ public class MissionExecutionService implements EventProcessor<MissionExecutionD
         }
         return CommandResultDTO.CommandStatus.FAILED;
     }
+
 }
