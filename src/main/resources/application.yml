@@ -47,6 +47,26 @@ kafka:
     route-status: umas.drone.route.status
     mission: umas.drone.mission
 
+executor:
+  drone:
+    # Número de threads mínimos siempre activos
+    # Ajustar según la carga base esperada de drones
+    core-pool-size: ${DRONE_EXECUTOR_CORE_SIZE:10}
+
+    # Número máximo de threads bajo carga alta
+    # Fórmula recomendada: número_de_drones_simultáneos_esperados * 2
+    # Ejemplo: Si esperas 25 drones simultáneos máximo, usa 50
+    max-pool-size: ${DRONE_EXECUTOR_MAX_SIZE:50}
+
+    # Tamaño de la cola de espera
+    # Si llegan más tareas de las que pueden procesar max-pool-size threads,
+    # esperan en esta cola. Si la cola se llena, aplica la rejection policy
+    queue-capacity: ${DRONE_EXECUTOR_QUEUE:100}
+
+    # Tiempo (segundos) que un thread inactivo espera antes de terminar
+    # Solo aplica si allowCoreThreadTimeOut = true
+    keep-alive-seconds: 60
+
 logging:
   level:
     org.apache.mina.filter.logging.LoggingFilter: OFF

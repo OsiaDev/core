@@ -138,7 +138,7 @@ public class UgcsClientAdapter implements UgcsClient {
     }
 
     @Override
-    public CompletableFuture<Object> findOrCreateMission(String missionName) {
+    public CompletableFuture<DomainProto.Mission> findOrCreateMission(String missionName) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 if (!connected.get()) {
@@ -217,19 +217,12 @@ public class UgcsClientAdapter implements UgcsClient {
     }
 
     @Override
-    public CompletableFuture<Boolean> createMissionVehicle(Object ugcsMission, DomainProto.Vehicle vehicle) {
+    public CompletableFuture<Boolean> createMissionVehicle(DomainProto.Mission mission, DomainProto.Vehicle vehicle) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 if (!connected.get()) {
                     throw new IllegalStateException("Not connected to UgCS Server");
                 }
-
-                if (!(ugcsMission instanceof DomainProto.Mission)) {
-                    throw new IllegalArgumentException("ugcsMission must be of type DomainProto.MissionVehicle");
-                }
-
-                DomainProto.Mission mission = (DomainProto.Mission) ugcsMission;
-
 
                 DomainProto.MissionVehicle newMissionVehicle = DomainProto.MissionVehicle.newBuilder()
                         .setMission(mission)

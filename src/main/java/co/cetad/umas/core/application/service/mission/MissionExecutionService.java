@@ -107,7 +107,7 @@ public class MissionExecutionService implements EventProcessor<MissionExecutionD
      * @return CompletableFuture<Boolean> indicando éxito del procesamiento
      */
     private CompletableFuture<Boolean> processSingleDrone(
-            Object ugcsMission,
+            DomainProto.Mission ugcsMission,
             MissionExecutionDTO.DroneExecution drone,
             String missionId
     ) {
@@ -206,7 +206,7 @@ public class MissionExecutionService implements EventProcessor<MissionExecutionD
      * Registra un vehículo en una misión
      */
     private CompletableFuture<Boolean> registerVehicleInMission(
-            Object ugcsMission,
+            DomainProto.Mission ugcsMission,
             DomainProto.Vehicle vehicle
     ) {
         log.info("📝 Registering vehicle {} in mission", vehicle.getName());

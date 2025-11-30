@@ -31,7 +31,7 @@ public interface UgcsClient {
      * @param missionName Nombre de la misión
      * @return La misión de UgCS (DomainProto.Mission)
      */
-    CompletableFuture<Object> findOrCreateMission(String missionName);
+    CompletableFuture<DomainProto.Mission> findOrCreateMission(String missionName);
 
     /**
      * Busca una ruta por nombre
@@ -42,7 +42,7 @@ public interface UgcsClient {
 
 
     CompletableFuture<Boolean> createMissionVehicle(
-            Object ugcsMission,
+            DomainProto.Mission ugcsMission,
             DomainProto.Vehicle vehicle
     );
 
