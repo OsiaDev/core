@@ -6,12 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableAsync;
 
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -56,7 +51,7 @@ public class AsyncConfiguration {
      * Usar con: @Qualifier("droneExecutor")
      */
     @Bean(name = "droneExecutor", destroyMethod = "shutdown")
-    public Executor droneExecutor() {
+    public ExecutorService droneExecutor() {  // ✅ Cambiar de Executor a ExecutorService
         ThreadPoolExecutor executor = new ThreadPoolExecutor(
                 dronePoolCoreSize,
                 dronePoolMaxSize,
@@ -67,7 +62,6 @@ public class AsyncConfiguration {
                 new ThreadPoolExecutor.CallerRunsPolicy()
         );
 
-        // Permite que los core threads terminen si están inactivos
         executor.allowCoreThreadTimeOut(true);
 
         log.info("🚁 Drone Executor initialized: core={}, max={}, queue={}, keepAlive={}s",
@@ -106,7 +100,7 @@ public class AsyncConfiguration {
      * Usar con: @Qualifier("cpuBoundExecutor")
      */
     @Bean(name = "cpuBoundExecutor", destroyMethod = "shutdown")
-    public Executor cpuBoundExecutor() {
+    public ExecutorService cpuBoundExecutor() {  // ✅ Cambiar de Executor a ExecutorService
         int processors = Runtime.getRuntime().availableProcessors();
 
         log.info("💻 CPU Bound Executor initialized with {} threads", processors);

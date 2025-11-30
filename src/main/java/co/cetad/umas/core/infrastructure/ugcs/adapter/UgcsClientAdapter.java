@@ -44,7 +44,7 @@ public class UgcsClientAdapter implements UgcsClient {
                     client = new Client(serverAddress);
 
                     var listener = new TelemetryNotificationListener(telemetrySink, droneCache);
-                    //client.addNotificationListener(listener);
+                    client.addNotificationListener(listener);
 
                     client.connect();
 
@@ -498,7 +498,7 @@ public class UgcsClientAdapter implements UgcsClient {
                         route.getName(), vehicle.getName());
             } finally {
                 try {
-                    session.releaseVehicleControl(vehicle);
+                    //session.releaseVehicleControl(vehicle);
                     log.debug("Vehicle control released after route upload");
                 } catch (Exception e) {
                     log.warn("Failed to release vehicle control", e);
