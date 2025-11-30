@@ -120,7 +120,7 @@ public class MissionExecutionService implements EventProcessor<MissionExecutionD
             return CompletableFuture.completedFuture(true);
         }
 
-        String routeName = generateRouteName(drone, missionId);
+        String routeName = drone.routeId();
 
         // 1. Buscar si la ruta ya existe
         return ugcsClient.findRouteByName(routeName)
