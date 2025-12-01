@@ -56,7 +56,7 @@ public class MissionExecutionConsumer {
                     .exceptionally(error -> {
                         log.error("❌ Failed to execute mission: {}",
                                 mission.missionId(), error);
-                        acknowledgment.acknowledge();  // Acknowledge para no reintentarlo indefinidamente
+                        acknowledgment.acknowledge();
                         return null;
                     });
 

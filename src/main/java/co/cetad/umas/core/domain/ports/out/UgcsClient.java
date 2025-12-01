@@ -2,7 +2,6 @@ package co.cetad.umas.core.domain.ports.out;
 
 import co.cetad.umas.core.domain.model.dto.MissionExecutionDTO;
 import co.cetad.umas.core.domain.model.vo.CommandRequest;
-import co.cetad.umas.core.domain.model.vo.RouteDefinition;
 import co.cetad.umas.core.domain.model.vo.TelemetryData;
 import com.ugcs.ucs.proto.DomainProto;
 import reactor.core.publisher.Flux;
@@ -57,7 +56,7 @@ public interface UgcsClient {
      * @return true si se creó y subió exitosamente
      */
     CompletableFuture<DomainProto.Vehicle> createAndUploadRoute(
-            Object ugcsMission,
+            DomainProto.Mission ugcsMission,
             String vehicleId,
             String routeName,
             List<MissionExecutionDTO.SimpleWaypoint> waypoints,
@@ -71,7 +70,7 @@ public interface UgcsClient {
      * @param existingRoute Ruta existente (DomainProto.Route)
      * @return true si se subió exitosamente
      */
-    CompletableFuture<DomainProto.Vehicle> uploadExistingRoute(String vehicleId, Object existingRoute);
+    CompletableFuture<DomainProto.Vehicle> uploadExistingRoute(String vehicleId, DomainProto.Route existingRoute);
 
     /**
      * Información de una ruta

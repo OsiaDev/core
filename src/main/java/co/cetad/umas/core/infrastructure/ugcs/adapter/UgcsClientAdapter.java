@@ -149,16 +149,21 @@ public class UgcsClientAdapter implements UgcsClient {
 
                 // Buscar misión existente
                 List<DomainProto.DomainObjectWrapper> missions = session.getObjectList(DomainProto.Mission.class);
-                for (DomainProto.DomainObjectWrapper wrapper : missions) {
-                    if (wrapper.getMission().getName().equals(missionName)) {
-                        log.info("✅ Found existing mission: '{}'", missionName);
-                        return wrapper.getMission();
-                    }
+
+                DomainProto.Mission result = missions.stream()
+                        .map(DomainProto.DomainObjectWrapper::getMission)
+                        .filter(m -> m.getName().equals(missionName))
+                        .findFirst()
+                        .orElse(null);
+
+                if (result != null) {
+                    log.info("✅ Found existing mission: '{}'", missionName);
+                    return result;
                 }
 
                 // Crear nueva misión
                 log.info("Creating new mission: '{}'", missionName);
-                DomainProto.User user = session.getObjectList(DomainProto.User.class).get(0).getUser();
+                DomainProto.User user = session.getObjectList(DomainProto.User.class).getFirst().getUser();
 
                 DomainProto.Mission newMission = DomainProto.Mission.newBuilder()
                         .setName(missionName)
@@ -198,16 +203,17 @@ public class UgcsClientAdapter implements UgcsClient {
                     return Optional.empty();
                 }
 
-                for (var wrapper : routeWrappers) {
-                    var route = wrapper.getRoute();
-                    if (route.getName().equals(routeName)) {
-                        log.info("✅ Found existing route: '{}'", routeName);
-                        return Optional.of(route);
-                    }
+                var result = routeWrappers.stream()
+                        .map(DomainProto.DomainObjectWrapper::getRoute)
+                        .filter(r -> r.getName().equals(routeName))
+                        .peek(r -> log.info("✅ Found existing route: '{}'", routeName))
+                        .findFirst();
+
+                if (result.isEmpty()) {
+                    log.info("Route '{}' not found", routeName);
                 }
 
-                log.info("Route '{}' not found", routeName);
-                return Optional.empty();
+                return result;
 
             } catch (Exception e) {
                 log.error("Failed to search for route: {}", routeName, e);
@@ -243,7 +249,7 @@ public class UgcsClientAdapter implements UgcsClient {
 
     @Override
     public CompletableFuture<DomainProto.Vehicle> createAndUploadRoute(
-            Object ugcsMission,
+            DomainProto.Mission ugcsMission,
             String vehicleId,
             String routeName,
             List<MissionExecutionDTO.SimpleWaypoint> waypoints,
@@ -256,11 +262,6 @@ public class UgcsClientAdapter implements UgcsClient {
                     throw new IllegalStateException("Not connected to UgCS Server");
                 }
 
-                if (!(ugcsMission instanceof DomainProto.Mission)) {
-                    throw new IllegalArgumentException("ugcsMission must be of type DomainProto.Mission");
-                }
-
-                DomainProto.Mission mission = (DomainProto.Mission) ugcsMission;
                 log.info("Creating and uploading route '{}' with {} waypoints to vehicle: {}",
                         routeName, waypoints.size(), vehicleId);
 
@@ -271,7 +272,7 @@ public class UgcsClientAdapter implements UgcsClient {
                 }
 
                 // 2. Construir la ruta
-                DomainProto.Route route = buildRoute(mission, vehicle, routeName, waypoints, altitude, speed);
+                DomainProto.Route route = buildRoute(ugcsMission, vehicle, routeName, waypoints, altitude, speed);
 
                 // 3. Guardar la ruta en el servidor
                 log.debug("Saving route to UgCS Server");
@@ -296,26 +297,19 @@ public class UgcsClientAdapter implements UgcsClient {
     }
 
     @Override
-    public CompletableFuture<DomainProto.Vehicle> uploadExistingRoute(String vehicleId, Object existingRoute) {
+    public CompletableFuture<DomainProto.Vehicle> uploadExistingRoute(String vehicleId, DomainProto.Route existingRoute) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 if (!connected.get()) {
                     throw new IllegalStateException("Not connected to UgCS Server");
                 }
 
-                if (!(existingRoute instanceof DomainProto.Route)) {
-                    throw new IllegalArgumentException("existingRoute must be of type DomainProto.Route");
-                }
-
-                var route = (DomainProto.Route) existingRoute;
-                log.info("Uploading existing route '{}' to vehicle: {}", route.getName(), vehicleId);
-
                 var vehicle = findVehicle(vehicleId);
                 if (vehicle == null) {
                     throw new IllegalArgumentException("Vehicle not found: " + vehicleId);
                 }
 
-                uploadRouteToVehicle(vehicle, route);
+                uploadRouteToVehicle(vehicle, existingRoute);
                 return vehicle;
 
             } catch (Exception e) {
@@ -430,17 +424,15 @@ public class UgcsClientAdapter implements UgcsClient {
                         .setReason(DomainProto.FailsafeReason.FR_GPS_LOST)
                         .setAction(DomainProto.FailsafeAction.FA_WAIT));
 
-        for (int i = 0; i < waypoints.size(); i++) {
+        for (MissionExecutionDTO.SimpleWaypoint waypoint : waypoints) {
 
             // Construir figura con todos los waypoints
             DomainProto.Figure.Builder figure = DomainProto.Figure.newBuilder()
                     .setType(DomainProto.FigureType.FT_POINT);
 
-            var wp = waypoints.get(i);
-
             // IMPORTANTE: UgCS requiere lat/lon en RADIANES, no en grados
-            double latRadians = Math.toRadians(wp.latitude());
-            double lonRadians = Math.toRadians(wp.longitude());
+            double latRadians = Math.toRadians(waypoint.latitude());
+            double lonRadians = Math.toRadians(waypoint.longitude());
 
             figure.addPoints(DomainProto.FigurePoint.newBuilder()
                     .setLatitude(latRadians)

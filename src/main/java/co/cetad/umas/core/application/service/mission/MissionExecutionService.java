@@ -115,11 +115,11 @@ public class MissionExecutionService implements EventProcessor<MissionExecutionD
                 drone.vehicleId(), drone.waypoints().size());
 
         // 1. Procesar la ruta del dron
-        return processDroneRoute(ugcsMission, drone, missionId)
+        return processDroneRoute(ugcsMission, drone)
                 .thenCompose(vehicle -> {
                     // 2. Si no hay vehicle (sin waypoints), completar sin registrar
                     if (vehicle == null) {
-                        log.info("Drone {} has no route to register", drone.vehicleId());
+                        log.info("An error occurred processing the route for vehicle {}", drone.vehicleId());
                         return CompletableFuture.completedFuture(true);
                     }
 
@@ -142,9 +142,8 @@ public class MissionExecutionService implements EventProcessor<MissionExecutionD
      * @return CompletableFuture<DomainProto.Vehicle> el vehículo con la ruta cargada, o null si no hay waypoints
      */
     private CompletableFuture<DomainProto.Vehicle> processDroneRoute(
-            Object ugcsMission,
-            MissionExecutionDTO.DroneExecution drone,
-            String missionId
+            DomainProto.Mission ugcsMission,
+            MissionExecutionDTO.DroneExecution drone
     ) {
         // Si el dron no tiene waypoints, retornar null
         if (!drone.hasWaypoints()) {
@@ -152,54 +151,17 @@ public class MissionExecutionService implements EventProcessor<MissionExecutionD
             return CompletableFuture.completedFuture(null);
         }
 
-        String routeName = generateRouteName(drone, missionId);
-
         // Buscar si la ruta ya existe
-        return ugcsClient.findRouteByName(routeName)
+        return ugcsClient.findRouteByName(drone.routeId())
                 .thenCompose(existingRoute -> {
                     if (existingRoute.isPresent()) {
-                        log.info("✅ Found existing route: {}, uploading to drone", routeName);
-                        return uploadExistingRouteToVehicle(drone.vehicleId(), existingRoute.get());
+                        log.info("✅ Found existing route: {}, uploading to drone", drone.routeId());
+                        return ugcsClient.uploadExistingRoute(drone.vehicleId(), existingRoute.get());
                     } else {
-                        log.info("Creating new route: {} for drone: {}", routeName, drone.vehicleId());
-                        return createNewRouteForVehicle(ugcsMission, drone, routeName);
+                        log.info("Creating new route: {} for drone: {}", drone.routeId(), drone.vehicleId());
+                        return ugcsClient.createAndUploadRoute(ugcsMission, drone.vehicleId(), drone.routeId(), drone.waypoints(), defaultAltitude, defaultSpeed);
                     }
                 });
-    }
-
-    /**
-     * Sube una ruta existente a un vehículo
-     */
-    private CompletableFuture<DomainProto.Vehicle> uploadExistingRouteToVehicle(
-            String vehicleId,
-            DomainProto.Route existingRoute
-    ) {
-        return ugcsClient.uploadExistingRoute(vehicleId, existingRoute)
-                .thenApply(vehicle -> {
-                    log.info("✅ Existing route uploaded to drone: {}", vehicleId);
-                    return vehicle;
-                });
-    }
-
-    /**
-     * Crea una nueva ruta y la sube al vehículo
-     */
-    private CompletableFuture<DomainProto.Vehicle> createNewRouteForVehicle(
-            Object ugcsMission,
-            MissionExecutionDTO.DroneExecution drone,
-            String routeName
-    ) {
-        return ugcsClient.createAndUploadRoute(
-                ugcsMission,
-                drone.vehicleId(),
-                routeName,
-                drone.waypoints(),
-                defaultAltitude,
-                defaultSpeed
-        ).thenApply(vehicle -> {
-            log.info("✅ New route created and uploaded for drone: {}", drone.vehicleId());
-            return vehicle;
-        });
     }
 
     /**
@@ -253,19 +215,6 @@ public class MissionExecutionService implements EventProcessor<MissionExecutionD
                     log.info("✅ AUTO command executed for: {}", vehicleId);
                     return true;
                 });
-    }
-
-    /**
-     * Genera un nombre único para la ruta
-     * Prioriza el routeId si está disponible, sino usa missionId_vehicleId
-     */
-    private String generateRouteName(MissionExecutionDTO.DroneExecution drone, String missionId) {
-        // Si viene routeId en el mensaje, usarlo
-        if (drone.routeId() != null && !drone.routeId().isBlank()) {
-            return drone.routeId();
-        }
-        // Fallback: generar nombre basado en missionId y vehicleId
-        return String.format("%s_%s", missionId, drone.vehicleId());
     }
 
     private CommandResultDTO buildSuccessResult(MissionExecutionDTO mission) {
