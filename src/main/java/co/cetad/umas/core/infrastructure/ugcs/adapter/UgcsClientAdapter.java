@@ -2,9 +2,11 @@ package co.cetad.umas.core.infrastructure.ugcs.adapter;
 
 import co.cetad.umas.core.domain.model.dto.MissionExecutionDTO;
 import co.cetad.umas.core.domain.model.vo.CommandRequest;
+import co.cetad.umas.core.domain.model.vo.MissionCompleteData;
 import co.cetad.umas.core.domain.model.vo.TelemetryData;
 import co.cetad.umas.core.domain.ports.out.DroneCache;
 import co.cetad.umas.core.domain.ports.out.UgcsClient;
+import co.cetad.umas.core.infrastructure.ugcs.listener.mission.MissionCompleteNotificationListener;
 import co.cetad.umas.core.infrastructure.ugcs.listener.telemetry.TelemetryNotificationListener;
 import com.ugcs.ucs.client.Client;
 import com.ugcs.ucs.client.ClientSession;
@@ -30,10 +32,12 @@ public class UgcsClientAdapter implements UgcsClient {
     private final DroneCache droneCache;
 
     private Client client;
-    private ClientSession session;
+    private ClientSessionCustom session;
     private final AtomicBoolean connected = new AtomicBoolean(false);
     private final Sinks.Many<TelemetryData> telemetrySink = Sinks.many().multicast().onBackpressureBuffer();
-    private int subscriptionId = -1;
+    private final Sinks.Many<MissionCompleteData> missionCompleteSink = Sinks.many().multicast().onBackpressureBuffer();
+    private int telemetrySubscriptionId = -1;
+    private int missionCompleteSubscriptionId = -2;
 
     @Override
     public Mono<Void> connect(String host, int port, String username, String password) {
@@ -46,13 +50,17 @@ public class UgcsClientAdapter implements UgcsClient {
                     var listener = new TelemetryNotificationListener(telemetrySink, droneCache);
                     client.addNotificationListener(listener);
 
+                    var missionCompleteListener = new MissionCompleteNotificationListener(missionCompleteSink);
+                    client.addNotificationListener(missionCompleteListener);
+
                     client.connect();
 
-                    session = new ClientSession(client);
+                    session = new ClientSessionCustom(client);
                     session.authorizeHci();
                     session.login(username, password);
 
-                    subscriptionId = session.subscribeTelemetryEvent();
+                    telemetrySubscriptionId = session.subscribeTelemetryEvent();
+                    missionCompleteSubscriptionId = session.subscribeToObjectModifications();
 
                     connected.set(true);
                     log.info("Successfully connected to UgCS Server");
@@ -69,14 +77,18 @@ public class UgcsClientAdapter implements UgcsClient {
     @Override
     public Mono<Void> disconnect() {
         return Mono.fromCallable(() -> {
-                    if (subscriptionId != -1 && session != null) {
-                        session.unsubscribe(subscriptionId);
+                    if (telemetrySubscriptionId != -1 && session != null) {
+                        session.unsubscribe(telemetrySubscriptionId);
+                    }
+                    if (missionCompleteSubscriptionId != -2 && session != null) {
+                        session.unsubscribe(missionCompleteSubscriptionId);
                     }
                     if (client != null) {
                         client.close();
                     }
                     connected.set(false);
                     telemetrySink.tryEmitComplete();
+                    missionCompleteSink.tryEmitComplete();
                     log.info("Disconnected from UgCS Server");
                     return null;
                 })

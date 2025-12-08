@@ -1,6 +1,7 @@
 package co.cetad.umas.core.infrastructure.ugcs.listener.mission;
 
 import co.cetad.umas.core.domain.model.vo.DroneLocation;
+import co.cetad.umas.core.domain.model.vo.MissionCompleteData;
 import co.cetad.umas.core.domain.model.vo.TelemetryData;
 import co.cetad.umas.core.domain.ports.out.DroneCache;
 import com.ugcs.ucs.client.ServerNotification;
@@ -18,19 +19,18 @@ import java.util.function.Consumer;
 
 @Slf4j
 public record MissionCompleteNotificationListener(
-        Sinks.Many<TelemetryData> telemetrySink,
-        DroneCache droneCache
+        Sinks.Many<MissionCompleteData> missionCompleteSink
 ) implements ServerNotificationListener {
 
     @Override
     public void notificationReceived(ServerNotification event) {
         try {
             var wrapper = event.getEvent();
-            if (wrapper == null || !wrapper.hasTelemetryEvent()) {
+            if (wrapper == null || !wrapper.hasObjectModificationEvent()) {
                 return;
             }
 
-            var telemetryEvent = wrapper.getTelemetryEvent();
+            var telemetryEvent = wrapper.getObjectModificationEvent();
             var vehicle = telemetryEvent.getVehicle();
 
             final var telemetryData = processTelemetry(
@@ -45,25 +45,6 @@ public record MissionCompleteNotificationListener(
         } catch (Exception e) {
             log.error("Error processing telemetry notification", e);
         }
-    }
-
-    @NotNull
-    private Runnable emptyDroneLocation(TelemetryData telemetryData) {
-        return () -> {
-            // Invalid location: try to enrich from cache replacing zero coords with cached ones
-            var cached = droneCache.getTelemetry(telemetryData.vehicleId());
-
-            var newDrone = cached.map(droneCached -> new TelemetryData(
-                    droneCached.vehicleId(),
-                    droneCached.location(),
-                    telemetryData.fields(),
-                    telemetryData.timestamp()
-            ));
-
-            newDrone.ifPresent(drone -> droneCache.setTelemetry(telemetryData.vehicleId(), drone));
-            // Keep current behavior: do not emit when invalid
-            log.debug("Skipping telemetry emission for vehicle {} due to invalid lat/lon and no cache", telemetryData.vehicleId());
-        };
     }
 
     private void handleTelemetry(TelemetryData newData) {
