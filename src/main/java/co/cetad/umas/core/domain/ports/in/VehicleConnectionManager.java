@@ -14,4 +14,6 @@ public interface VehicleConnectionManager {
 
     Mono<Void> subscribeTelemetry();
 
+    Mono<Void> subscribeMissionComplete();
+
 }

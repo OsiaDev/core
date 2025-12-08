@@ -46,6 +46,7 @@ kafka:
     vehicle-status: umas.drone.vehicle.status
     route-status: umas.drone.route.status
     mission: umas.drone.mission
+    mission-status: umas.drone.mission.status
 
 executor:
   drone:

@@ -1,12 +1,14 @@
 package co.cetad.umas.core.application.service.ugcs;
 
 import co.cetad.umas.core.domain.model.dto.VehicleStatusDTO;
+import co.cetad.umas.core.domain.model.vo.MissionCompleteData;
 import co.cetad.umas.core.domain.model.vo.TelemetryData;
 import co.cetad.umas.core.domain.ports.in.EventProcessor;
 import co.cetad.umas.core.domain.ports.in.VehicleConnectionManager;
 import co.cetad.umas.core.domain.ports.out.StatusNotifier;
 import co.cetad.umas.core.domain.ports.out.UgcsClient;
 import co.cetad.umas.core.infrastructure.ugcs.config.UgcsProperties;
+import com.ugcs.ucs.proto.DomainProto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,6 +27,7 @@ public class UgcsConnectionService implements VehicleConnectionManager {
     private final UgcsProperties properties;
     private final StatusNotifier statusNotifier;
     private final EventProcessor<TelemetryData, Void> telemetryProcessorService;
+    private final EventProcessor<MissionCompleteData, Void> missionCompleteProcessorService;
 
     @Override
     public Mono<Void> connect() {
@@ -67,6 +70,16 @@ public class UgcsConnectionService implements VehicleConnectionManager {
                 .doOnNext(telemetry -> {
                     log.debug("Received telemetry: {}", telemetry);
                     telemetryProcessorService.process(telemetry);
+                })
+                .then();
+    }
+
+    @Override
+    public Mono<Void> subscribeMissionComplete() {
+        return ugcsClient.subscribeMissionComplete()
+                .doOnNext(missionComplete -> {
+                    log.debug("MissionC omplete telemetry: {}", missionComplete);
+                    missionCompleteProcessorService.process(missionComplete);
                 })
                 .then();
     }
