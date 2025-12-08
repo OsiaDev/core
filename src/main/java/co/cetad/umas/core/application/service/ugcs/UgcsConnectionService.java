@@ -78,7 +78,7 @@ public class UgcsConnectionService implements VehicleConnectionManager {
     public Mono<Void> subscribeMissionComplete() {
         return ugcsClient.subscribeMissionComplete()
                 .doOnNext(missionComplete -> {
-                    log.debug("MissionC omplete telemetry: {}", missionComplete);
+                    log.debug("Mission Complete telemetry: {}", missionComplete);
                     missionCompleteProcessorService.process(missionComplete);
                 })
                 .then();

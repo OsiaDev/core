@@ -8,7 +8,6 @@ import co.cetad.umas.core.domain.ports.out.UgcsClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import reactor.core.publisher.Mono;
 
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -28,48 +27,51 @@ public class MissionCompleteProcessorService implements EventProcessor<MissionCo
     private final EventPublisher<MissionCompleteData> missionCompletePublisher;
 
     /**
-     * Inicia la escucha de eventos de misión completa
-     * Procesa cada evento ejecutando el comando LAND y publicando a Kafka
-     */
-
-
-    /**
      * Procesa un evento individual de misión completa
      *
      * @param missionComplete Datos del evento de finalización
-     * @return Mono<Boolean> indicando el éxito del procesamiento
+     * @return CompletableFuture<Void> indicando el éxito del procesamiento
      */
+    @Override
     public CompletableFuture<Void> process(MissionCompleteData missionComplete) {
         log.info("📥 Processing mission complete event - Vehicle: {}, Flight time: {} seconds",
                 missionComplete.vehicleId(),
                 missionComplete.flightTimeSeconds());
 
+        // Ejecutar comando LAND y luego publicar a Kafka
         return executeLandCommand(missionComplete.vehicleId())
-                .flatMap(landSuccess -> {
+                .thenCompose(landSuccess -> {
                     if (landSuccess) {
                         log.info("✅ LAND command executed successfully for: {}",
                                 missionComplete.vehicleId());
-                        return publishMissionCompleteEvent(missionComplete)
-                                .thenReturn(true);
                     } else {
-                        log.warn("⚠️ LAND command failed for: {}",
+                        log.warn("⚠️ LAND command failed for: {} (continuing with publish)",
                                 missionComplete.vehicleId());
-                        // Publicamos el evento aunque el LAND falle
-                        return publishMissionCompleteEvent(missionComplete)
-                                .thenReturn(false);
                     }
+
+                    // Publicar evento a Kafka independientemente del resultado de LAND
+                    return publishMissionCompleteEvent(missionComplete);
                 })
-                .doOnError(error ->
-                        log.error("❌ Error processing mission complete for vehicle: {}",
-                                missionComplete.vehicleId(), error)
-                )
-                .onErrorReturn(false);
+                .exceptionally(error -> {
+                    log.error("❌ Error processing mission complete for vehicle: {}",
+                            missionComplete.vehicleId(), error);
+
+                    // Intentar publicar el evento aunque LAND haya fallado
+                    publishMissionCompleteEvent(missionComplete)
+                            .exceptionally(pubError -> {
+                                log.error("❌ Failed to publish mission complete event", pubError);
+                                return null;
+                            });
+
+                    return null;
+                });
     }
 
     /**
      * Ejecuta el comando LAND para un vehículo
+     * Convierte de CompletableFuture a CompletableFuture
      */
-    private Mono<Boolean> executeLandCommand(String vehicleId) {
+    private CompletableFuture<Boolean> executeLandCommand(String vehicleId) {
         log.info("🛬 Executing LAND command for vehicle: {}", vehicleId);
 
         CommandRequest landCommand = new CommandRequest(
@@ -78,20 +80,19 @@ public class MissionCompleteProcessorService implements EventProcessor<MissionCo
                 Map.of()
         );
 
-        return Mono.fromFuture(() ->
-                ugcsClient.executeCommand(landCommand)
-                        .exceptionally(error -> {
-                            log.error("Failed to execute LAND command for: {}",
-                                    vehicleId, error);
-                            return false;
-                        })
-        );
+        return ugcsClient.executeCommand(landCommand)
+                .exceptionally(error -> {
+                    log.error("Failed to execute LAND command for: {}",
+                            vehicleId, error);
+                    return false;
+                });
     }
 
     /**
      * Publica el evento de misión completa al topic de Kafka
+     * Convierte Mono<Void> a CompletableFuture<Void>
      */
-    private Mono<Void> publishMissionCompleteEvent(MissionCompleteData missionComplete) {
+    private CompletableFuture<Void> publishMissionCompleteEvent(MissionCompleteData missionComplete) {
         log.info("📤 Publishing mission complete event to Kafka - Vehicle: {}",
                 missionComplete.vehicleId());
 
@@ -103,7 +104,9 @@ public class MissionCompleteProcessorService implements EventProcessor<MissionCo
                 .doOnError(error ->
                         log.error("❌ Failed to publish mission complete event for: {}",
                                 missionComplete.vehicleId(), error)
-                );
+                )
+                .toFuture()  // ← Convierte Mono<Void> a CompletableFuture<Void>
+                .thenApply(v -> null);  // Asegurar que retorna Void
     }
 
 }

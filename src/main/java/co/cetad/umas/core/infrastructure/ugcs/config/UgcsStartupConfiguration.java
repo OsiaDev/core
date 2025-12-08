@@ -21,6 +21,7 @@ public class UgcsStartupConfiguration {
 
         connectionManager.connect()
                 .then(startTelemetrySubscription())
+                .then(startMissionCompleteSubscription())
                 .doOnSuccess(v -> log.info("UgCS connection established and telemetry subscription started"))
                 .doOnError(e -> log.error("Failed to initialize UgCS connection", e))
                 .subscribe();
@@ -28,6 +29,10 @@ public class UgcsStartupConfiguration {
 
     private Mono<Void> startTelemetrySubscription() {
         return this.connectionManager.subscribeTelemetry();
+    }
+
+    private Mono<Void> startMissionCompleteSubscription() {
+        return this.connectionManager.subscribeMissionComplete();
     }
 
 }
