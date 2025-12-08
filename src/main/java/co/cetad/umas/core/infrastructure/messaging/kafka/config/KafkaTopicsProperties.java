@@ -21,4 +21,6 @@ public class KafkaTopicsProperties {
 
     private String routeStatus = "umas.drone.route.status";
 
+    private String missionStatus = "umas.drone.mission.status";
+
 }
