@@ -5,7 +5,7 @@ import co.cetad.umas.core.domain.model.vo.CommandRequest;
 import co.cetad.umas.core.domain.model.vo.TelemetryData;
 import co.cetad.umas.core.domain.ports.out.DroneCache;
 import co.cetad.umas.core.domain.ports.out.UgcsClient;
-import co.cetad.umas.core.infrastructure.ugcs.listener.TelemetryNotificationListener;
+import co.cetad.umas.core.infrastructure.ugcs.listener.telemetry.TelemetryNotificationListener;
 import com.ugcs.ucs.client.Client;
 import com.ugcs.ucs.client.ClientSession;
 import com.ugcs.ucs.proto.DomainProto;

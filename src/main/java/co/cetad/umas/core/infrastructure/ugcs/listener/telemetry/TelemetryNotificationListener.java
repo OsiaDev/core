@@ -1,4 +1,4 @@
-package co.cetad.umas.core.infrastructure.ugcs.listener;
+package co.cetad.umas.core.infrastructure.ugcs.listener.telemetry;
 
 import co.cetad.umas.core.domain.model.vo.DroneLocation;
 import co.cetad.umas.core.domain.model.vo.TelemetryData;

@@ -1,9 +1,6 @@
 package co.cetad.umas.core.infrastructure.ugcs.config;
 
-import co.cetad.umas.core.domain.ports.in.EventProcessor;
 import co.cetad.umas.core.domain.ports.in.VehicleConnectionManager;
-import co.cetad.umas.core.domain.model.vo.TelemetryData;
-import co.cetad.umas.core.domain.ports.out.UgcsClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -17,8 +14,6 @@ import reactor.core.publisher.Mono;
 public class UgcsStartupConfiguration {
 
     private final VehicleConnectionManager connectionManager;
-    private final UgcsClient ugcsClient;
-    private final EventProcessor<TelemetryData, Void> telemetryProcessorService;
 
     @EventListener(ApplicationReadyEvent.class)
     public void onApplicationReady() {
@@ -32,12 +27,7 @@ public class UgcsStartupConfiguration {
     }
 
     private Mono<Void> startTelemetrySubscription() {
-        return ugcsClient.subscribeTelemetry()
-                .doOnNext(telemetry -> {
-                    log.debug("Received telemetry: {}", telemetry);
-                    telemetryProcessorService.process(telemetry);
-                })
-                .then();
+        return this.connectionManager.subscribeTelemetry();
     }
 
 }

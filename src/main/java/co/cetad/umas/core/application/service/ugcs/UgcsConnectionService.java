@@ -2,6 +2,7 @@ package co.cetad.umas.core.application.service.ugcs;
 
 import co.cetad.umas.core.domain.model.dto.VehicleStatusDTO;
 import co.cetad.umas.core.domain.model.vo.TelemetryData;
+import co.cetad.umas.core.domain.ports.in.EventProcessor;
 import co.cetad.umas.core.domain.ports.in.VehicleConnectionManager;
 import co.cetad.umas.core.domain.ports.out.EventPublisher;
 import co.cetad.umas.core.domain.ports.out.StatusNotifier;
@@ -11,7 +12,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 import reactor.util.retry.Retry;
 
 import java.time.Duration;
@@ -25,7 +25,7 @@ public class UgcsConnectionService implements VehicleConnectionManager {
     private final UgcsClient ugcsClient;
     private final UgcsProperties properties;
     private final StatusNotifier statusNotifier;
-    private final EventPublisher<TelemetryData> telemetryPublisher;
+    private final EventProcessor<TelemetryData, Void> telemetryProcessorService;
 
     @Override
     public Mono<Void> connect() {
@@ -65,16 +65,9 @@ public class UgcsConnectionService implements VehicleConnectionManager {
     @Override
     public Mono<Void> subscribeTelemetry() {
         return ugcsClient.subscribeTelemetry()
-                .publishOn(Schedulers.boundedElastic())
                 .doOnNext(telemetry -> {
-                    /*log.debug("Received telemetry for vehicle: {} at ({}, {})",
-                            telemetry.vehicleId(),
-                            telemetry.location().latitude(),
-                            telemetry.location().longitude());*/
-
-                    telemetryPublisher.publish(telemetry)
-                            .doOnError(e -> log.error("Failed to publish telemetry", e))
-                            .subscribe();
+                    log.debug("Received telemetry: {}", telemetry);
+                    telemetryProcessorService.process(telemetry);
                 })
                 .then();
     }
