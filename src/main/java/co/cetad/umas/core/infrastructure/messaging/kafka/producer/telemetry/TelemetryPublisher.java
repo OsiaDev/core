@@ -5,7 +5,6 @@ import co.cetad.umas.core.domain.model.vo.TelemetryEvent;
 import co.cetad.umas.core.domain.ports.out.EventPublisher;
 import co.cetad.umas.core.infrastructure.messaging.kafka.config.KafkaTopicsProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;

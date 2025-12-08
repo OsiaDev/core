@@ -2,6 +2,7 @@ package co.cetad.umas.core.domain.ports.out;
 
 import co.cetad.umas.core.domain.model.dto.MissionExecutionDTO;
 import co.cetad.umas.core.domain.model.vo.CommandRequest;
+import co.cetad.umas.core.domain.model.vo.MissionCompleteData;
 import co.cetad.umas.core.domain.model.vo.TelemetryData;
 import com.ugcs.ucs.proto.DomainProto;
 import reactor.core.publisher.Flux;
@@ -20,6 +21,8 @@ public interface UgcsClient {
 
     // Telemetría
     Flux<TelemetryData> subscribeTelemetry();
+
+    Flux<MissionCompleteData> subscribeMissionComplete();
 
     // Comandos
     CompletableFuture<Boolean> executeCommand(CommandRequest command);

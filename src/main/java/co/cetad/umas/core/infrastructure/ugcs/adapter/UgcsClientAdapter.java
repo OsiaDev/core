@@ -9,7 +9,6 @@ import co.cetad.umas.core.domain.ports.out.UgcsClient;
 import co.cetad.umas.core.infrastructure.ugcs.listener.mission.MissionCompleteNotificationListener;
 import co.cetad.umas.core.infrastructure.ugcs.listener.telemetry.TelemetryNotificationListener;
 import com.ugcs.ucs.client.Client;
-import com.ugcs.ucs.client.ClientSession;
 import com.ugcs.ucs.proto.DomainProto;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -101,6 +100,13 @@ public class UgcsClientAdapter implements UgcsClient {
         return telemetrySink.asFlux()
                 .doOnSubscribe(s -> log.info("Telemetry subscription started"))
                 .doOnCancel(() -> log.info("Telemetry subscription cancelled"));
+    }
+
+    @Override
+    public Flux<MissionCompleteData> subscribeMissionComplete() {
+        return this.missionCompleteSink.asFlux()
+                .doOnSubscribe(s -> log.info("Mission Complete subscription started"))
+                .doOnCancel(() -> log.info("Mission Complete subscription cancelled"));
     }
 
     @Override

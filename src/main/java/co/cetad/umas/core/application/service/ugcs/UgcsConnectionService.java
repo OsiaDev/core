@@ -4,7 +4,6 @@ import co.cetad.umas.core.domain.model.dto.VehicleStatusDTO;
 import co.cetad.umas.core.domain.model.vo.TelemetryData;
 import co.cetad.umas.core.domain.ports.in.EventProcessor;
 import co.cetad.umas.core.domain.ports.in.VehicleConnectionManager;
-import co.cetad.umas.core.domain.ports.out.EventPublisher;
 import co.cetad.umas.core.domain.ports.out.StatusNotifier;
 import co.cetad.umas.core.domain.ports.out.UgcsClient;
 import co.cetad.umas.core.infrastructure.ugcs.config.UgcsProperties;

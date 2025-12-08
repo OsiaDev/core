@@ -2,8 +2,10 @@ package co.cetad.umas.core.infrastructure.ugcs.adapter;
 
 import com.ugcs.ucs.client.Client;
 import com.ugcs.ucs.client.ClientSession;
-import com.ugcs.ucs.proto.DomainProto;
-import com.ugcs.ucs.proto.MessagesProto;
+import com.ugcs.ucs.proto.DomainProto.EventSubscriptionWrapper;
+import com.ugcs.ucs.proto.DomainProto.ObjectModificationSubscription;
+import com.ugcs.ucs.proto.MessagesProto.SubscribeEventRequest;
+import com.ugcs.ucs.proto.MessagesProto.SubscribeEventResponse;
 
 public class ClientSessionCustom extends ClientSession {
 
@@ -16,12 +18,12 @@ public class ClientSessionCustom extends ClientSession {
     }
 
     public int subscribeToObjectModifications() throws Exception {
-        MessagesProto.SubscribeEventRequest request = MessagesProto.SubscribeEventRequest.newBuilder()
+        SubscribeEventRequest request = SubscribeEventRequest.newBuilder()
                 .setClientId(clientId)
-                .setSubscription(DomainProto.EventSubscriptionWrapper.newBuilder()
-                        .setTelemetrySubscription(DomainProto.TelemetrySubscription.newBuilder()))
+                .setSubscription(EventSubscriptionWrapper.newBuilder()
+                        .setObjectModificationSubscription(ObjectModificationSubscription.newBuilder()))
                 .build();
-        MessagesProto.SubscribeEventResponse response = client.execute(request);
+        SubscribeEventResponse response = client.execute(request);
         return response.getSubscriptionId();
     }
 
