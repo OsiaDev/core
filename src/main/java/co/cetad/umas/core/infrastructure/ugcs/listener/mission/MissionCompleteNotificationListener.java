@@ -1,6 +1,9 @@
 package co.cetad.umas.core.infrastructure.ugcs.listener.mission;
 
+import co.cetad.umas.core.domain.model.vo.DroneLocation;
 import co.cetad.umas.core.domain.model.vo.MissionCompleteData;
+import co.cetad.umas.core.domain.model.vo.TelemetryData;
+import co.cetad.umas.core.domain.ports.out.DroneCache;
 import com.ugcs.ucs.client.ServerNotification;
 import com.ugcs.ucs.client.ServerNotificationListener;
 import com.ugcs.ucs.proto.DomainProto;
@@ -10,10 +13,13 @@ import reactor.core.publisher.Sinks;
 /**
  * Listener que procesa eventos de VehicleLogEntry para detectar
  * la finalización de misiones basándose en mensajes del log
+ *
+ * VERSIÓN MEJORADA: Intenta obtener la ubicación del dron desde el cache
  */
 @Slf4j
 public record MissionCompleteNotificationListener(
-        Sinks.Many<MissionCompleteData> missionCompleteSink
+        Sinks.Many<MissionCompleteData> missionCompleteSink,
+        DroneCache droneCache
 ) implements ServerNotificationListener {
 
     private static final String MISSION_COMPLETE_MESSAGE = "Current mission complete";
@@ -61,7 +67,7 @@ public record MissionCompleteNotificationListener(
                     vehicleId, message);
 
             // Crear el objeto de datos de misión completa
-            MissionCompleteData missionComplete = MissionCompleteData.fromVehicleLog(
+            MissionCompleteData missionComplete = createMissionCompleteData(
                     vehicleId,
                     message,
                     timeMillis
@@ -82,6 +88,43 @@ public record MissionCompleteNotificationListener(
     }
 
     /**
+     * Crea MissionCompleteData intentando obtener la ubicación del dron
+     */
+    private MissionCompleteData createMissionCompleteData(
+            String vehicleId,
+            String message,
+            long timeMillis
+    ) {
+        // Intentar obtener la última ubicación conocida del dron desde el cache
+        DroneLocation location = null;
+
+        try {
+            var telemetry = droneCache.getTelemetry(vehicleId);
+            if (telemetry.isPresent()) {
+                location = telemetry.map(TelemetryData::location).get();
+                log.debug("Using cached location for vehicle {}: lat={}, lon={}",
+                        vehicleId, location.latitude(), location.longitude());
+            } else {
+                log.debug("No cached location available for vehicle: {}", vehicleId);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to retrieve location from cache for vehicle: {}", vehicleId, e);
+        }
+
+        // Crear con o sin location según disponibilidad
+        Double flightTime = extractFlightTime(message);
+
+        return new MissionCompleteData(
+                vehicleId,
+                location,  // Puede ser null si no hay ubicación disponible
+                flightTime,
+                message,
+                null,  // missionId se asignará después
+                java.time.Instant.ofEpochMilli(timeMillis)
+        );
+    }
+
+    /**
      * Extrae el vehicleId del VehicleLogEntry
      */
     private String extractVehicleId(DomainProto.VehicleLogEntry logEntry) {
@@ -89,6 +132,28 @@ public record MissionCompleteNotificationListener(
             return logEntry.getVehicle().getName();
         }
         return "UNKNOWN";
+    }
+
+    /**
+     * Extrae el tiempo de vuelo del mensaje del log
+     */
+    private Double extractFlightTime(String message) {
+        if (message == null || !message.contains("Flight time:")) {
+            return null;
+        }
+
+        try {
+            String[] parts = message.split("Flight time:");
+            if (parts.length > 1) {
+                String timeStr = parts[1].trim();
+                return Double.parseDouble(timeStr);
+            }
+        } catch (NumberFormatException e) {
+            log.warn("Failed to parse flight time from message: {}", message, e);
+            return null;
+        }
+
+        return null;
     }
 
 }

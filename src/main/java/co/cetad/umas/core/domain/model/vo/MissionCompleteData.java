@@ -4,13 +4,10 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.Instant;
 
-/**
- * Value Object que representa la finalización de una misión
- * Contiene información extraída del VehicleLogEntry de UgCS
- */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record MissionCompleteData(
         @JsonProperty("vehicleId") String vehicleId,
+        @JsonProperty("location") DroneLocation location,
         @JsonProperty("flightTimeSeconds") Double flightTimeSeconds,
         @JsonProperty("message") String message,
         @JsonProperty("missionId") String missionId,
@@ -18,6 +15,7 @@ public record MissionCompleteData(
 ) {
     /**
      * Constructor de fábrica para crear desde un VehicleLogEntry de UgCS
+     * sin información de ubicación
      */
     public static MissionCompleteData fromVehicleLog(
             String vehicleId,
@@ -28,9 +26,31 @@ public record MissionCompleteData(
 
         return new MissionCompleteData(
                 vehicleId,
+                null, // Location se puede agregar después
                 flightTime,
                 message,
                 null, // Se asignará después cuando se conozca el missionId
+                Instant.ofEpochMilli(timeMillis)
+        );
+    }
+
+    /**
+     * Constructor de fábrica con ubicación del dron
+     */
+    public static MissionCompleteData fromVehicleLogWithLocation(
+            String vehicleId,
+            DroneLocation location,
+            String message,
+            long timeMillis
+    ) {
+        Double flightTime = extractFlightTime(message);
+
+        return new MissionCompleteData(
+                vehicleId,
+                location,
+                flightTime,
+                message,
+                null,
                 Instant.ofEpochMilli(timeMillis)
         );
     }
@@ -63,6 +83,21 @@ public record MissionCompleteData(
     public MissionCompleteData withMissionId(String missionId) {
         return new MissionCompleteData(
                 vehicleId,
+                location,
+                flightTimeSeconds,
+                message,
+                missionId,
+                timestamp
+        );
+    }
+
+    /**
+     * Crea una copia con la ubicación del dron
+     */
+    public MissionCompleteData withLocation(DroneLocation location) {
+        return new MissionCompleteData(
+                vehicleId,
+                location,
                 flightTimeSeconds,
                 message,
                 missionId,

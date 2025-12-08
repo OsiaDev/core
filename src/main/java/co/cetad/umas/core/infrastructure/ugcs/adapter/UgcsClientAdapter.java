@@ -49,7 +49,7 @@ public class UgcsClientAdapter implements UgcsClient {
                     var listener = new TelemetryNotificationListener(telemetrySink, droneCache);
                     client.addNotificationListener(listener);
 
-                    var missionCompleteListener = new MissionCompleteNotificationListener(missionCompleteSink);
+                    var missionCompleteListener = new MissionCompleteNotificationListener(missionCompleteSink, droneCache);
                     client.addNotificationListener(missionCompleteListener);
 
                     client.connect();

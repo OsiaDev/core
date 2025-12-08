@@ -1,21 +1,21 @@
 package co.cetad.umas.core.application.service.ugcs;
 
+import co.cetad.umas.core.application.service.mission.MissionCompleteProcessorService;
+import co.cetad.umas.core.application.service.telemetry.TelemetryProcessorService;
 import co.cetad.umas.core.domain.model.dto.VehicleStatusDTO;
-import co.cetad.umas.core.domain.model.vo.MissionCompleteData;
-import co.cetad.umas.core.domain.model.vo.TelemetryData;
-import co.cetad.umas.core.domain.ports.in.EventProcessor;
 import co.cetad.umas.core.domain.ports.in.VehicleConnectionManager;
 import co.cetad.umas.core.domain.ports.out.StatusNotifier;
 import co.cetad.umas.core.domain.ports.out.UgcsClient;
 import co.cetad.umas.core.infrastructure.ugcs.config.UgcsProperties;
-import com.ugcs.ucs.proto.DomainProto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 import reactor.util.retry.Retry;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 
 @Slf4j
@@ -24,13 +24,17 @@ import java.util.concurrent.CompletableFuture;
 public class UgcsConnectionService implements VehicleConnectionManager {
 
     private final UgcsClient ugcsClient;
-    private final UgcsProperties properties;
     private final StatusNotifier statusNotifier;
-    private final EventProcessor<TelemetryData, Void> telemetryProcessorService;
-    private final EventProcessor<MissionCompleteData, Void> missionCompleteProcessorService;
+    private final TelemetryProcessorService telemetryProcessorService;
+    private final MissionCompleteProcessorService missionCompleteProcessorService;
+    private final UgcsProperties properties;
 
     @Override
     public Mono<Void> connect() {
+        log.info("🔌 Connecting to UgCS Server at {}:{}",
+                properties.getServer().getHost(),
+                properties.getServer().getPort());
+
         return ugcsClient.connect(
                         properties.getServer().getHost(),
                         properties.getServer().getPort(),
@@ -39,24 +43,22 @@ public class UgcsConnectionService implements VehicleConnectionManager {
                 )
                 .retryWhen(buildRetrySpec())
                 .doOnSuccess(v -> {
-                    log.info("Successfully connected to UgCS Server");
-                    notifyStatus(VehicleStatusDTO.connected("system"));
-                    disconnect();
+                    log.info("✅ Successfully connected to UgCS Server");
                 })
                 .doOnError(e -> {
-                    log.error("Failed to connect after retries", e);
-                    notifyStatus(VehicleStatusDTO.error("system", e.getMessage()));
-                })
-                .then();
+                    log.error("❌ Failed to connect to UgCS Server", e);
+                });
     }
 
     @Override
     public Mono<Void> disconnect() {
+        log.info("Disconnecting from UgCS Server");
+
         return ugcsClient.disconnect()
                 .doOnSuccess(v -> {
                     log.info("Disconnected from UgCS Server");
-                    notifyStatus(VehicleStatusDTO.error("system", "Disconnected"));
-                });
+                })
+                .doOnError(e -> log.error("Error during disconnect", e));
     }
 
     @Override
@@ -66,21 +68,46 @@ public class UgcsConnectionService implements VehicleConnectionManager {
 
     @Override
     public Mono<Void> subscribeTelemetry() {
+        log.info("🎧 Starting telemetry subscription");
+
         return ugcsClient.subscribeTelemetry()
+                .subscribeOn(Schedulers.boundedElastic())
                 .doOnNext(telemetry -> {
-                    log.debug("Received telemetry: {}", telemetry);
-                    telemetryProcessorService.process(telemetry);
+                    log.trace("Received telemetry for vehicle: {}", telemetry.vehicleId());
+
+                    // Procesar telemetría de forma asíncrona
+                    telemetryProcessorService.process(telemetry)
+                            .exceptionally(error -> {
+                                log.error("Error processing telemetry for vehicle: {}",
+                                        telemetry.vehicleId(), error);
+                                return null;
+                            });
                 })
+                .doOnError(error -> log.error("Error in telemetry subscription", error))
+                .retry()  // Reintentar automáticamente en caso de error
                 .then();
     }
 
     @Override
     public Mono<Void> subscribeMissionComplete() {
+        log.info("🎧 Starting mission complete event subscription");
+
         return ugcsClient.subscribeMissionComplete()
+                .subscribeOn(Schedulers.boundedElastic())
                 .doOnNext(missionComplete -> {
-                    log.debug("Mission Complete telemetry: {}", missionComplete);
-                    missionCompleteProcessorService.process(missionComplete);
+                    log.debug("Received mission complete event for vehicle: {}",
+                            missionComplete.vehicleId());
+
+                    // Procesar evento de misión completa de forma asíncrona
+                    missionCompleteProcessorService.process(missionComplete)
+                            .exceptionally(error -> {
+                                log.error("Error processing mission complete for vehicle: {}",
+                                        missionComplete.vehicleId(), error);
+                                return null;
+                            });
                 })
+                .doOnError(error -> log.error("Error in mission complete subscription", error))
+                .retry()  // Reintentar automáticamente en caso de error
                 .then();
     }
 
