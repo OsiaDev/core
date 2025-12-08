@@ -95,18 +95,17 @@ public class UgcsConnectionService implements VehicleConnectionManager {
         return ugcsClient.subscribeMissionComplete()
                 .subscribeOn(Schedulers.boundedElastic())
                 .doOnNext(missionComplete -> {
-                    log.debug("Received mission complete event for vehicle: {}",
+                    log.info("📥 Received mission complete event for vehicle: {}",
                             missionComplete.vehicleId());
 
-                    // Procesar evento de misión completa de forma asíncrona
                     missionCompleteProcessorService.process(missionComplete)
                             .exceptionally(error -> {
-                                log.error("Error processing mission complete for vehicle: {}",
+                                log.error("❌ Error processing mission complete for vehicle: {}",
                                         missionComplete.vehicleId(), error);
                                 return null;
                             });
                 })
-                .doOnError(error -> log.error("Error in mission complete subscription", error))
+                .doOnError(error -> log.error("Error in telemetry subscription", error))
                 .retry()  // Reintentar automáticamente en caso de error
                 .then();
     }
