@@ -25,8 +25,11 @@ public class UgcsStartupConfiguration {
         log.info("🚀 Application ready, initializing UgCS connection and subscriptions...");
 
         connectionManager.connect()
-                .then(startTelemetrySubscription())
-                .then(startMissionCompleteSubscription())  // ← AGREGADO
+                .doOnSuccess(v -> {
+                    // Una vez conectado, iniciar ambas suscripciones en paralelo
+                    startTelemetrySubscription().subscribe();
+                    startMissionCompleteSubscription().subscribe();
+                })
                 .doOnSuccess(v -> log.info("✅ UgCS connection established and all subscriptions started"))
                 .doOnError(e -> log.error("❌ Failed to initialize UgCS connection", e))
                 .subscribe(

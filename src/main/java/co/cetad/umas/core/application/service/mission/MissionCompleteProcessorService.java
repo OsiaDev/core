@@ -76,7 +76,7 @@ public class MissionCompleteProcessorService implements EventProcessor<MissionCo
 
         CommandRequest landCommand = new CommandRequest(
                 vehicleId,
-                "land",
+                "land_command",
                 Map.of()
         );
 
