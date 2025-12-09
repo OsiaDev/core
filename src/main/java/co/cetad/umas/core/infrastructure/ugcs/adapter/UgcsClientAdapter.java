@@ -8,8 +8,15 @@ import co.cetad.umas.core.domain.ports.out.DroneCache;
 import co.cetad.umas.core.domain.ports.out.UgcsClient;
 import co.cetad.umas.core.infrastructure.ugcs.listener.mission.MissionCompleteNotificationListener;
 import co.cetad.umas.core.infrastructure.ugcs.listener.telemetry.TelemetryNotificationListener;
+import co.cetad.umas.core.infrastructure.ugcs.utils.UtilUGCS;
 import com.ugcs.ucs.client.Client;
 import com.ugcs.ucs.proto.DomainProto;
+import com.ugcs.ucs.proto.DomainProto.SegmentDefinition;
+import com.ugcs.ucs.proto.DomainProto.Figure;
+import com.ugcs.ucs.proto.DomainProto.FigureType;
+import com.ugcs.ucs.proto.DomainProto.ParameterValue;
+import com.ugcs.ucs.proto.DomainProto.AltitudeType;
+import com.ugcs.ucs.proto.DomainProto.FigurePoint;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
@@ -18,6 +25,8 @@ import reactor.core.publisher.Sinks;
 import reactor.core.scheduler.Schedulers;
 
 import java.net.InetSocketAddress;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -186,6 +195,10 @@ public class UgcsClientAdapter implements UgcsClient {
                 DomainProto.Mission newMission = DomainProto.Mission.newBuilder()
                         .setName(missionName)
                         .setOwner(user)
+                        .setCreationTime(LocalDateTime.now()
+                                .atZone(ZoneId.systemDefault())
+                                .toInstant()
+                                .toEpochMilli())
                         .build();
 
                 DomainProto.DomainObjectWrapper missionWrapper = DomainProto.DomainObjectWrapper.newBuilder()
@@ -438,9 +451,7 @@ public class UgcsClientAdapter implements UgcsClient {
                 .setMaxSpeed(25.0)
                 .setMaxAltitude(10000.0)
                 .setSafeAltitude(altitude)
-                .addFailsafes(DomainProto.Failsafe.newBuilder()
-                        .setReason(DomainProto.FailsafeReason.FR_GPS_LOST)
-                        .setAction(DomainProto.FailsafeAction.FA_WAIT));
+                .addAllFailsafes(UtilUGCS.getDefaultFailsafes());
 
         for (MissionExecutionDTO.SimpleWaypoint waypoint : waypoints) {
 
@@ -449,8 +460,8 @@ public class UgcsClientAdapter implements UgcsClient {
                     .setType(DomainProto.FigureType.FT_POINT);
 
             // IMPORTANTE: UgCS requiere lat/lon en RADIANES, no en grados
-            double latRadians = Math.toRadians(waypoint.latitude());
-            double lonRadians = Math.toRadians(waypoint.longitude());
+            double latRadians = this.parseToRadius(waypoint.latitude());
+            double lonRadians = this.parseToRadius(waypoint.longitude());
 
             figure.addPoints(DomainProto.FigurePoint.newBuilder()
                     .setLatitude(latRadians)
@@ -481,6 +492,9 @@ public class UgcsClientAdapter implements UgcsClient {
                             .setValue("AGL"));
             route.addSegments(routeSegment);
         }
+        if (!waypoints.isEmpty()) {
+            route.addSegments(this.createLandingPoint(waypoints.getLast()));
+        }
 
         if (vehicle != null) {
             route.setVehicleProfile(vehicle.getProfile());
@@ -488,6 +502,37 @@ public class UgcsClientAdapter implements UgcsClient {
 
         log.debug("✅ Route built: '{}'", routeName);
         return route.build();
+    }
+
+    private double parseToRadius(double value) {
+        return Math.toRadians(value);
+    }
+
+    private SegmentDefinition.Builder createLandingPoint(MissionExecutionDTO.SimpleWaypoint waypoint) {
+        Figure.Builder figure = Figure.newBuilder()
+                .setType(FigureType.FT_LANDING_POINT);
+
+        double latRadians = this.parseToRadius(waypoint.latitude());
+        double lonRadians = this.parseToRadius(waypoint.longitude());
+
+        figure.addPoints(FigurePoint.newBuilder()
+                .setLatitude(latRadians)
+                .setLongitude(lonRadians)
+                .setAglAltitude(0.0)
+                .setAltitudeType(AltitudeType.AT_AGL));
+
+        return SegmentDefinition.newBuilder()
+                .setAlgorithmClassName("com.ugcs.ucs.service.routing.impl.WaypointAlgorithm")
+                .setFigure(figure)
+                .addParameterValues(ParameterValue.newBuilder()
+                        .setName("avoidObstacles")
+                        .setValue("true"))
+                .addParameterValues(ParameterValue.newBuilder()
+                        .setName("avoidTerrain")
+                        .setValue("true"))
+                .addParameterValues(ParameterValue.newBuilder()
+                        .setName("altitudeType")
+                        .setValue("AGL"));
     }
 
     /**

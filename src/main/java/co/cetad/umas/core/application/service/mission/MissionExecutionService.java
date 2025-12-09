@@ -84,7 +84,7 @@ public class MissionExecutionService implements EventProcessor<MissionExecutionD
 
                     // 2. Procesar cada dron de forma asíncrona y recolectar los CompletableFutures
                     List<CompletableFuture<Boolean>> droneProcessingFutures = mission.drones().stream()
-                            .map(drone -> processSingleDrone(ugcsMission, drone, mission.missionId()))
+                            .map(drone -> processSingleDrone(ugcsMission, drone))
                             .toList();
 
                     // 3. Esperar a que todos los drones se procesen con allOf
@@ -108,8 +108,7 @@ public class MissionExecutionService implements EventProcessor<MissionExecutionD
      */
     private CompletableFuture<Boolean> processSingleDrone(
             DomainProto.Mission ugcsMission,
-            MissionExecutionDTO.DroneExecution drone,
-            String missionId
+            MissionExecutionDTO.DroneExecution drone
     ) {
         log.info("📍 Processing drone: {} with {} waypoints",
                 drone.vehicleId(), drone.waypoints().size());

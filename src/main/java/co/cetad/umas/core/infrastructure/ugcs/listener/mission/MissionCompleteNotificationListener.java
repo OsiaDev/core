@@ -10,12 +10,6 @@ import com.ugcs.ucs.proto.DomainProto;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Sinks;
 
-/**
- * Listener que procesa eventos de VehicleLogEntry para detectar
- * la finalización de misiones basándose en mensajes del log
- *
- * VERSIÓN MEJORADA: Intenta obtener la ubicación del dron desde el cache
- */
 @Slf4j
 public record MissionCompleteNotificationListener(
         Sinks.Many<MissionCompleteData> missionCompleteSink,

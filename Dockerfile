@@ -60,3 +60,5 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
 
 # ENTRYPOINT: usar nombre neutro app.jar y JAVA_OPTS
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -Djava.security.egd=file:/dev/./urandom -jar /app/app.jar"]
+
+ENV TZ=America/Bogota
