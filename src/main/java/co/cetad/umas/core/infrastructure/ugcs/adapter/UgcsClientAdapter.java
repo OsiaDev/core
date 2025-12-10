@@ -281,11 +281,7 @@ public class UgcsClientAdapter implements UgcsClient {
     @Override
     public CompletableFuture<DomainProto.Vehicle> createAndUploadRoute(
             DomainProto.Mission ugcsMission,
-            String vehicleId,
-            String routeName,
-            List<MissionExecutionDTO.SimpleWaypoint> waypoints,
-            double altitude,
-            double speed
+            MissionExecutionDTO.DroneExecution drone
     ) {
         return CompletableFuture.supplyAsync(() -> {
             try {
@@ -294,16 +290,16 @@ public class UgcsClientAdapter implements UgcsClient {
                 }
 
                 log.info("Creating and uploading route '{}' with {} waypoints to vehicle: {}",
-                        routeName, waypoints.size(), vehicleId);
+                        drone.routeId(), drone.waypoints().size(), drone.vehicleId());
 
                 // 1. Buscar el vehículo
-                DomainProto.Vehicle vehicle = findVehicle(vehicleId);
+                DomainProto.Vehicle vehicle = findVehicle(drone.vehicleId());
                 if (vehicle == null) {
-                    throw new IllegalArgumentException("Vehicle not found: " + vehicleId);
+                    throw new IllegalArgumentException("Vehicle not found: " + drone.vehicleId());
                 }
 
                 // 2. Construir la ruta
-                DomainProto.Route route = buildRoute(ugcsMission, vehicle, routeName, waypoints, altitude, speed);
+                DomainProto.Route route = buildRoute(ugcsMission, vehicle, drone);
 
                 // 3. Guardar la ruta en el servidor
                 log.debug("Saving route to UgCS Server");
@@ -321,7 +317,7 @@ public class UgcsClientAdapter implements UgcsClient {
 
             } catch (Exception e) {
                 log.error("Failed to create and upload route '{}' for vehicle: {}",
-                        routeName, vehicleId, e);
+                        drone.routeId(), drone.vehicleId(), e);
                 throw new RuntimeException("Route creation failed: " + e.getMessage(), e);
             }
         });
@@ -434,26 +430,23 @@ public class UgcsClientAdapter implements UgcsClient {
     private DomainProto.Route buildRoute(
             DomainProto.Mission mission,
             DomainProto.Vehicle vehicle,
-            String routeName,
-            List<MissionExecutionDTO.SimpleWaypoint> waypoints,
-            double altitude,
-            double speed
+            MissionExecutionDTO.DroneExecution drone
     ) {
-        log.debug("Building route: '{}' with {} waypoints", routeName, waypoints.size());
+        log.debug("Building route: '{}' with {} waypoints", drone.routeId(), drone.waypoints().size());
 
         // Construir ruta completa
         DomainProto.Route.Builder route = DomainProto.Route.newBuilder()
                 .setMission(mission)
-                .setName(routeName)
+                .setName(drone.routeId())
                 .setCheckAerodromeNfz(true)
                 .setCheckCustomNfz(false)
-                .setInitialSpeed(speed)
+                .setInitialSpeed(5.0)
                 .setMaxSpeed(25.0)
-                .setMaxAltitude(10000.0)
-                .setSafeAltitude(altitude)
+                .setMaxAltitude(drone.maxAltitude())
+                .setSafeAltitude(drone.safeAltitude())
                 .addAllFailsafes(UtilUGCS.getDefaultFailsafes());
 
-        for (MissionExecutionDTO.SimpleWaypoint waypoint : waypoints) {
+        for (MissionExecutionDTO.SimpleWaypoint waypoint : drone.waypoints()) {
 
             // Construir figura con todos los waypoints
             DomainProto.Figure.Builder figure = DomainProto.Figure.newBuilder()
@@ -466,7 +459,7 @@ public class UgcsClientAdapter implements UgcsClient {
             figure.addPoints(DomainProto.FigurePoint.newBuilder()
                     .setLatitude(latRadians)
                     .setLongitude(lonRadians)
-                    .setAglAltitude(altitude)
+                    .setAglAltitude(drone.safeAltitude())
                     .setAltitudeType(DomainProto.AltitudeType.AT_AGL));
 
             // Construir segmento de ruta
@@ -475,7 +468,7 @@ public class UgcsClientAdapter implements UgcsClient {
                     .setFigure(figure)
                     .addParameterValues(DomainProto.ParameterValue.newBuilder()
                             .setName("speed")
-                            .setValue(Double.toString(speed)))
+                            .setValue(Double.toString(5.0)))
                     .addParameterValues(DomainProto.ParameterValue.newBuilder()
                             .setName("wpTurnType")
                             .setValue("STOP_AND_TURN"))
@@ -492,15 +485,15 @@ public class UgcsClientAdapter implements UgcsClient {
                             .setValue("AGL"));
             route.addSegments(routeSegment);
         }
-        if (!waypoints.isEmpty()) {
-            route.addSegments(this.createLandingPoint(waypoints.getLast()));
+        if (!drone.waypoints().isEmpty()) {
+            route.addSegments(this.createLandingPoint(drone.waypoints().getLast()));
         }
 
         if (vehicle != null) {
             route.setVehicleProfile(vehicle.getProfile());
         }
 
-        log.debug("✅ Route built: '{}'", routeName);
+        log.debug("✅ Route built: '{}'", drone.routeId());
         return route.build();
     }
 

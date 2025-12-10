@@ -73,11 +73,15 @@ public record MissionExecutionDTO(
     public record DroneExecution(
             @JsonProperty("vehicleId") String vehicleId,
             @JsonProperty("routeId") String routeId,
+            @JsonProperty("safeAltitude") Double safeAltitude,
+            @JsonProperty("maxAltitude") Double maxAltitude,
             @JsonProperty("waypoints") List<SimpleWaypoint> waypoints
     ) {
         public DroneExecution {
             Objects.requireNonNull(vehicleId, "Vehicle ID cannot be null");
             Objects.requireNonNull(waypoints, "Waypoints cannot be null");
+            Objects.requireNonNull(safeAltitude, "SafeAltitude cannot be null");
+            Objects.requireNonNull(maxAltitude, "MaxAltitude cannot be null");
 
             if (vehicleId.isBlank()) {
                 throw new IllegalArgumentException("Vehicle ID cannot be empty");
@@ -89,15 +93,16 @@ public record MissionExecutionDTO(
         /**
          * Factory method para crear ejecución de dron con waypoints y routeId
          */
-        public static DroneExecution create(String vehicleId, String routeId, List<SimpleWaypoint> waypoints) {
-            return new DroneExecution(vehicleId, routeId, waypoints);
+        public static DroneExecution create(String vehicleId, String routeId, Double safeAltitude,
+                                            Double maxAltitude, List<SimpleWaypoint> waypoints) {
+            return new DroneExecution(vehicleId, routeId, safeAltitude, maxAltitude, waypoints);
         }
 
         /**
          * Factory method para crear ejecución de dron sin waypoints ni ruta
          */
         public static DroneExecution createWithoutRoute(String vehicleId) {
-            return new DroneExecution(vehicleId, null, List.of());
+            return new DroneExecution(vehicleId, null, 0.0, 0.0, List.of());
         }
 
         /**
@@ -114,4 +119,5 @@ public record MissionExecutionDTO(
             return routeId != null && !routeId.isBlank();
         }
     }
+    
 }

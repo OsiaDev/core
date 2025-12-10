@@ -51,20 +51,12 @@ public interface UgcsClient {
     /**
      * Crea una nueva ruta y la sube al vehículo
      * @param ugcsMission Misión de UgCS a la que pertenece
-     * @param vehicleId ID del vehículo
-     * @param routeName Nombre de la ruta
-     * @param waypoints Lista de waypoints simples
-     * @param altitude Altitud por defecto
-     * @param speed Velocidad por defecto
+     * @param drone DroneExecution del vehículo
      * @return true si se creó y subió exitosamente
      */
     CompletableFuture<DomainProto.Vehicle> createAndUploadRoute(
             DomainProto.Mission ugcsMission,
-            String vehicleId,
-            String routeName,
-            List<MissionExecutionDTO.SimpleWaypoint> waypoints,
-            double altitude,
-            double speed
+            MissionExecutionDTO.DroneExecution drone
     );
 
     /**

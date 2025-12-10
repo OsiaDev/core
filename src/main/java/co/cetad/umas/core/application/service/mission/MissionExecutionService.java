@@ -37,15 +37,6 @@ public class MissionExecutionService implements EventProcessor<MissionExecutionD
 
     private final UgcsClient ugcsClient;
 
-    @Value("${mission.default-altitude:50.0}")
-    private Double defaultAltitude;
-
-    @Value("${mission.default-speed:5.0}")
-    private Double defaultSpeed;
-
-    @Value("${mission.default-acceptance-radius:5.0}")
-    private Double defaultAcceptanceRadius;
-
     private static final Duration MISSION_EXECUTION_TIMEOUT = Duration.ofMinutes(5);
 
     @Override
@@ -158,7 +149,7 @@ public class MissionExecutionService implements EventProcessor<MissionExecutionD
                         return ugcsClient.uploadExistingRoute(drone.vehicleId(), existingRoute.get());
                     } else {
                         log.info("Creating new route: {} for drone: {}", drone.routeId(), drone.vehicleId());
-                        return ugcsClient.createAndUploadRoute(ugcsMission, drone.vehicleId(), drone.routeId(), drone.waypoints(), defaultAltitude, defaultSpeed);
+                        return ugcsClient.createAndUploadRoute(ugcsMission, drone);
                     }
                 });
     }
