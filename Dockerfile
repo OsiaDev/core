@@ -1,13 +1,11 @@
 # Dockerfile Multi-Stage para UMAS Core Service
-# Compatible con Apple Silicon (ARM64) y AMD64
-# Java 21 + Spring Boot + Gradle
+# Java 21 + Spring Boot + Gradle (usa gradlew si existe)
 
 # -------- Stage 1: Build --------
-# Usar imagen no-Alpine para compatibilidad multi-arquitectura
-FROM gradle:8.5-jdk21 AS builder
+FROM gradle:8.5-jdk21-alpine AS builder
 WORKDIR /app
 
-# Copiar todo el contexto (incluye gradlew, gradle/, build.gradle(.kts), src/, etc.)
+# Copiar todo el contexto (incluye gradlew, gradle/, build.gradle.kts, src/, etc.)
 COPY . .
 
 # Ejecutar build con gradle wrapper si existe, si no usar gradle del image
@@ -18,8 +16,7 @@ RUN if [ -f ./gradlew ]; then \
     fi
 
 # -------- Stage 2: Runtime --------
-# Usar Eclipse Temurin basado en Debian (no Alpine) para arm64/amd64
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:21-jre-alpine
 LABEL maintainer="CETAD UMAS Team"
 LABEL description="UMAS Core Service - Hexagonal Architecture with Kafka and UgCS"
 LABEL version="0.0.1-SNAPSHOT"
@@ -30,12 +27,10 @@ ENV JAVA_OPTS="-Xmx512m -Xms256m" \
     APP_USER=umas \
     APP_GROUP=umas
 
-# Instalar curl para healthcheck y crear usuario no-root (Debian/Ubuntu)
-RUN apt-get update \
- && apt-get install -y --no-install-recommends curl \
- && rm -rf /var/lib/apt/lists/* \
- && groupadd --system ${APP_GROUP} \
- && useradd --system --no-log-init --gid ${APP_GROUP} ${APP_USER}
+# Instalar curl para healthcheck y crear usuario no-root
+RUN apk add --no-cache curl \
+ && addgroup -S ${APP_GROUP} \
+ && adduser -S ${APP_USER} -G ${APP_GROUP}
 
 WORKDIR /app
 
@@ -43,12 +38,12 @@ WORKDIR /app
 COPY --from=builder /app/build/libs/*.jar /app/app.jar
 
 # Fail early: asegurar que el jar exista en la imagen
-RUN test -f /app/app.jar
+RUN [ -f /app/app.jar ]
 
 # Asignar ownership antes de cambiar a user no-root
 RUN chown -R ${APP_USER}:${APP_GROUP} /app
 
-# Exponer el puerto real que usa la aplicación (ver application.yml)
+# Exponer el puerto que usa tu application.yml (8084)
 EXPOSE 8080
 
 # Cambiar a usuario no-root
@@ -60,5 +55,3 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
 
 # ENTRYPOINT: usar nombre neutro app.jar y JAVA_OPTS
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -Djava.security.egd=file:/dev/./urandom -jar /app/app.jar"]
-
-ENV TZ=America/Bogota
