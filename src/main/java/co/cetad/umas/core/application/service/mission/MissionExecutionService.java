@@ -37,6 +37,9 @@ public class MissionExecutionService implements EventProcessor<MissionExecutionD
 
     private final UgcsClient ugcsClient;
 
+    @Value("${mission.default-speed:5.0}")
+    private Double defaultSpeed;
+
     private static final Duration MISSION_EXECUTION_TIMEOUT = Duration.ofMinutes(5);
 
     @Override
@@ -149,7 +152,7 @@ public class MissionExecutionService implements EventProcessor<MissionExecutionD
                         return ugcsClient.uploadExistingRoute(drone.vehicleId(), existingRoute.get());
                     } else {
                         log.info("Creating new route: {} for drone: {}", drone.routeId(), drone.vehicleId());
-                        return ugcsClient.createAndUploadRoute(ugcsMission, drone);
+                        return ugcsClient.createAndUploadRoute(ugcsMission, drone, defaultSpeed);
                     }
                 });
     }

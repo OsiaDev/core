@@ -50,14 +50,16 @@ public interface UgcsClient {
 
     /**
      * Crea una nueva ruta y la sube al vehículo
-     * @param ugcsMission Misión de UgCS a la que pertenece
-     * @param drone DroneExecution del vehículo
+     *
+     * @param ugcsMission  Misión de UgCS a la que pertenece
+     * @param drone        DroneExecution del vehículo
+     * @param defaultSpeed Velocidad
      * @return true si se creó y subió exitosamente
      */
     CompletableFuture<DomainProto.Vehicle> createAndUploadRoute(
             DomainProto.Mission ugcsMission,
-            MissionExecutionDTO.DroneExecution drone
-    );
+            MissionExecutionDTO.DroneExecution drone,
+            Double defaultSpeed);
 
     /**
      * Sube una ruta existente a un vehículo

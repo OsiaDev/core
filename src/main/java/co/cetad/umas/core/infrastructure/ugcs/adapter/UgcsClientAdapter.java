@@ -281,8 +281,8 @@ public class UgcsClientAdapter implements UgcsClient {
     @Override
     public CompletableFuture<DomainProto.Vehicle> createAndUploadRoute(
             DomainProto.Mission ugcsMission,
-            MissionExecutionDTO.DroneExecution drone
-    ) {
+            MissionExecutionDTO.DroneExecution drone,
+            Double defaultSpeed) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 if (!connected.get()) {
@@ -515,7 +515,7 @@ public class UgcsClientAdapter implements UgcsClient {
                 .setAltitudeType(AltitudeType.AT_AGL));
 
         return SegmentDefinition.newBuilder()
-                .setAlgorithmClassName("com.ugcs.ucs.service.routing.impl.WaypointAlgorithm")
+                .setAlgorithmClassName("com.ugcs.ucs.service.routing.impl.LandingAlgorithm")
                 .setFigure(figure)
                 .addParameterValues(ParameterValue.newBuilder()
                         .setName("avoidObstacles")
