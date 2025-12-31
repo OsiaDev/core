@@ -485,9 +485,6 @@ public class UgcsClientAdapter implements UgcsClient {
                             .setValue("AGL"));
             route.addSegments(routeSegment);
         }
-        if (!drone.waypoints().isEmpty()) {
-            route.addSegments(this.createLandingPoint(drone.waypoints().getLast()));
-        }
 
         if (vehicle != null) {
             route.setVehicleProfile(vehicle.getProfile());
@@ -499,33 +496,6 @@ public class UgcsClientAdapter implements UgcsClient {
 
     private double parseToRadius(double value) {
         return Math.toRadians(value);
-    }
-
-    private SegmentDefinition.Builder createLandingPoint(MissionExecutionDTO.SimpleWaypoint waypoint) {
-        Figure.Builder figure = Figure.newBuilder()
-                .setType(FigureType.FT_LANDING_POINT);
-
-        double latRadians = this.parseToRadius(waypoint.latitude());
-        double lonRadians = this.parseToRadius(waypoint.longitude());
-
-        figure.addPoints(FigurePoint.newBuilder()
-                .setLatitude(latRadians)
-                .setLongitude(lonRadians)
-                .setAglAltitude(0.0)
-                .setAltitudeType(AltitudeType.AT_AGL));
-
-        return SegmentDefinition.newBuilder()
-                .setAlgorithmClassName("com.ugcs.ucs.service.routing.impl.LandingAlgorithm")
-                .setFigure(figure)
-                .addParameterValues(ParameterValue.newBuilder()
-                        .setName("avoidObstacles")
-                        .setValue("true"))
-                .addParameterValues(ParameterValue.newBuilder()
-                        .setName("avoidTerrain")
-                        .setValue("true"))
-                .addParameterValues(ParameterValue.newBuilder()
-                        .setName("altitudeType")
-                        .setValue("AGL"));
     }
 
     /**
