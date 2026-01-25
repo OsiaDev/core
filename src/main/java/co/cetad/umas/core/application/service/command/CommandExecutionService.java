@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -107,10 +108,14 @@ public class CommandExecutionService implements EventProcessor<CommandExecutionD
     }
 
     private CommandResultDTO.CommandStatus determineErrorStatus(Throwable error) {
-        if (error instanceof TimeoutException) {
+        Throwable cause = error instanceof CompletionException ? error.getCause() : error;
+        if (cause instanceof TimeoutException) {
             return CommandResultDTO.CommandStatus.TIMEOUT;
         }
-        if (error instanceof IllegalStateException) {
+        if (cause instanceof IllegalStateException) {
+            return CommandResultDTO.CommandStatus.REJECTED;
+        }
+        if (cause instanceof IllegalArgumentException) {
             return CommandResultDTO.CommandStatus.REJECTED;
         }
         return CommandResultDTO.CommandStatus.FAILED;
